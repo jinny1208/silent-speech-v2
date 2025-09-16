@@ -2,9 +2,9 @@ dataset: "LibriTTS"
 
 path:
   corpus_path: "/home/jeonyj0612/silent-speech-v2/EMG_raw_data/"
-  lexicon_path: "/home/jeonyj0612/silent-speech-v2/lexicon/emgspeech-lexicon.txt"
+  lexicon_path: "/home/jeonyj0612/silent-speech-v2/lexicon/librispeech-lexicon.txt"
   raw_path: "/home/jeonyj0612/silent-speech-v2/EMG_raw_data/"
-  preprocessed_path: "/home/jeonyj0612/silent-speech-v2/preprocessed_data/silent_speech_preprocessed"
+  preprocessed_path: "/home/jeonyj0612/silent-speech-v2/preprocessed_data/LibriTTS"
 
 preprocessing:
   val_size: 512

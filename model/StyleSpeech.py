@@ -24,8 +24,6 @@ class StyleSpeech(nn.Module):
         self.model_config = model_config
 
         self.mel_style_encoder = MelStyleEncoder(preprocess_config, model_config)
-        self.mel_style_encoder_student = MelStyleEncoder(preprocess_config, model_config)
-
         self.phoneme_encoder = PhonemeEncoder(model_config)
         self.variance_adaptor = VarianceAdaptor(preprocess_config, model_config)
         self.mel_decoder = MelDecoder(model_config)
@@ -112,8 +110,6 @@ class StyleSpeech(nn.Module):
         mels,
         mel_lens,
         max_mel_len,
-        resemblyzer_embedded,
-        resemeblyzer_embedded_student,
         p_targets=None,
         e_targets=None,
         d_targets=None,
@@ -124,15 +120,7 @@ class StyleSpeech(nn.Module):
         src_masks = get_mask_from_lengths(src_lens, max_src_len)
         mel_masks = get_mask_from_lengths(mel_lens, max_mel_len)
 
-        # teacher model
-        style_vector_temp = resemblyzer_embedded.unsqueeze(1)
-        style_vector = self.mel_style_encoder(mels, mel_masks, style_vector_temp)
-
-        teach_style_vector = style_vector.clone().detach()
-
-        # student model
-        style_vector_student_temp = resemeblyzer_embedded_student.unsqueeze(1)
-        style_vector_not_ema_student = self.mel_style_encoder_student(None, None, style_vector_student_temp)
+        style_vector = self.mel_style_encoder(mels, mel_masks)
 
         (
             output,
@@ -143,7 +131,7 @@ class StyleSpeech(nn.Module):
             mel_lens,
             mel_masks,
         ) = self.G(
-            style_vector_not_ema_student, # originally style_vector; change to style_vector_not_ema_student during inference
+            style_vector,
             texts,
             src_masks,  
             mel_masks,
@@ -158,8 +146,6 @@ class StyleSpeech(nn.Module):
 
         return (
             output,
-            teach_style_vector,
-            style_vector_not_ema_student,
             p_predictions,
             e_predictions,
             log_d_predictions,

@@ -17,7 +17,7 @@ device = torch.device("cuda")
 
 
 def to_device(data, device):
-    if len(data) == 19:
+    if len(data) == 17:
         (
             ids,
             raw_texts,
@@ -28,8 +28,6 @@ def to_device(data, device):
             mels,
             mel_lens,
             max_mel_len,
-            resemblyzer_embedded,
-            resemblyzer_embedded_student,
             pitches,
             energies,
             durations,
@@ -47,8 +45,6 @@ def to_device(data, device):
         quary_src_lens = torch.from_numpy(quary_src_lens).to(device)
         mels = torch.from_numpy(mels).float().to(device)
         mel_lens = torch.from_numpy(mel_lens).to(device)
-        resemblyzer_embedded = torch.from_numpy(np.array(resemblyzer_embedded)).float().to(device)
-        resemblyzer_embedded_student = torch.from_numpy(np.array(resemblyzer_embedded_student)).float().to(device)
         pitches = torch.from_numpy(pitches).float().to(device)
         energies = torch.from_numpy(energies).to(device)
         durations = torch.from_numpy(durations).long().to(device)
@@ -64,8 +60,6 @@ def to_device(data, device):
             mels,
             mel_lens,
             max_mel_len,
-            resemblyzer_embedded,
-            resemblyzer_embedded_student,
             pitches,
             energies,
             durations,
@@ -76,7 +70,7 @@ def to_device(data, device):
             quary_durations,
         )
 
-    if len(data) == 11:
+    if len(data) == 10:
         (
             ids,
             raw_texts,
@@ -87,7 +81,6 @@ def to_device(data, device):
             mels,
             mel_lens,
             max_mel_len,
-            resemblyzer_embedded, 
             ref_infos,
         ) = data
 
@@ -95,9 +88,6 @@ def to_device(data, device):
         src_lens = torch.from_numpy(src_lens).to(device)
         mels = torch.from_numpy(mels).float().to(device)
         mel_lens = torch.from_numpy(mel_lens).to(device)
-
-        resemblyzer_embedded = torch.from_numpy(resemblyzer_embedded).to(device)
-        resemblyzer_embedded = resemblyzer_embedded.unsqueeze(0)
 
         return (
             ids,
@@ -109,8 +99,6 @@ def to_device(data, device):
             mels,
             mel_lens,
             max_mel_len,
-            resemblyzer_embedded,### placeholder로
-            resemblyzer_embedded,
             ref_infos,
         )
 
@@ -162,21 +150,21 @@ def expand(values, durations):
 def synth_one_sample(targets, predictions, vocoder, model_config, preprocess_config):
 
     basename = targets[0][0]
-    src_len = predictions[9][0].item()
-    mel_len = predictions[10][0].item()
+    src_len = predictions[7][0].item()
+    mel_len = predictions[8][0].item()
     mel_target = targets[6][0, :mel_len].detach().transpose(0, 1)
     mel_prediction = predictions[0][0, :mel_len].detach().transpose(0, 1)
-    duration = targets[13][0, :src_len].detach().cpu().numpy()
+    duration = targets[11][0, :src_len].detach().cpu().numpy()
     if preprocess_config["preprocessing"]["pitch"]["feature"] == "phoneme_level":
-        pitch = targets[11][0, :src_len].detach().cpu().numpy()
+        pitch = targets[9][0, :src_len].detach().cpu().numpy()
         pitch = expand(pitch, duration)
     else:
-        pitch = targets[11][0, :mel_len].detach().cpu().numpy()
+        pitch = targets[9][0, :mel_len].detach().cpu().numpy()
     if preprocess_config["preprocessing"]["energy"]["feature"] == "phoneme_level":
-        energy = targets[12][0, :src_len].detach().cpu().numpy()
+        energy = targets[10][0, :src_len].detach().cpu().numpy()
         energy = expand(energy, duration)
     else:
-        energy = targets[12][0, :mel_len].detach().cpu().numpy()
+        energy = targets[10][0, :mel_len].detach().cpu().numpy()
 
     with open(
         os.path.join(preprocess_config["path"]["preprocessed_path"], "stats.json")
@@ -219,20 +207,20 @@ def synth_samples(targets, predictions, vocoder, model_config, preprocess_config
     basenames = targets[0]
     for i in range(len(predictions[0])):
         basename = basenames[i]
-        src_len = predictions[9][i].item()
-        mel_len = predictions[10][i].item()
+        src_len = predictions[7][i].item()
+        mel_len = predictions[8][i].item()
         mel_prediction = predictions[0][i, :mel_len].detach().transpose(0, 1)
-        duration = predictions[6][i, :src_len].detach().cpu().numpy()
+        duration = predictions[4][i, :src_len].detach().cpu().numpy()
         if preprocess_config["preprocessing"]["pitch"]["feature"] == "phoneme_level":
-            pitch = predictions[3][i, :src_len].detach().cpu().numpy()
+            pitch = predictions[1][i, :src_len].detach().cpu().numpy()
             pitch = expand(pitch, duration)
         else:
-            pitch = predictions[3][i, :mel_len].detach().cpu().numpy()
+            pitch = predictions[1][i, :mel_len].detach().cpu().numpy()
         if preprocess_config["preprocessing"]["energy"]["feature"] == "phoneme_level":
-            energy = predictions[4][i, :src_len].detach().cpu().numpy()
+            energy = predictions[2][i, :src_len].detach().cpu().numpy()
             energy = expand(energy, duration)
         else:
-            energy = predictions[4][i, :mel_len].detach().cpu().numpy()
+            energy = predictions[2][i, :mel_len].detach().cpu().numpy()
 
         with open(
             os.path.join(preprocess_config["path"]["preprocessed_path"], "stats.json")
@@ -240,21 +228,21 @@ def synth_samples(targets, predictions, vocoder, model_config, preprocess_config
             stats = json.load(f)
             stats = stats["pitch"] + stats["energy"][:2]
 
-        # fig = plot_mel(
-        #     [
-        #         (mel_prediction.cpu().numpy(), pitch, energy),
-        #         targets[-1][i],
-        #     ],
-        #     stats,
-        #     ["Synthetized Spectrogram", "Reference Spectrogram"],
-        # )
-        # plt.savefig(os.path.join(path, "{}.png".format(basename)))
-        # plt.close()
+        fig = plot_mel(
+            [
+                (mel_prediction.cpu().numpy(), pitch, energy),
+                targets[-1][i],
+            ],
+            stats,
+            ["Synthetized Spectrogram", "Reference Spectrogram"],
+        )
+        plt.savefig(os.path.join(path, "{}.png".format(basename)))
+        plt.close()
 
     from .model import vocoder_infer
 
     mel_predictions = predictions[0].transpose(1, 2)
-    lengths = predictions[10] * preprocess_config["preprocessing"]["stft"]["hop_length"]
+    lengths = predictions[8] * preprocess_config["preprocessing"]["stft"]["hop_length"]
     wav_predictions = vocoder_infer(
         mel_predictions, vocoder, model_config, preprocess_config, lengths=lengths
     )
