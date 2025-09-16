@@ -22,8 +22,6 @@ class MetaStyleSpeechLossMain(nn.Module):
             mel_targets,
             _,
             _,
-            _,
-            _,
             pitch_targets,
             energy_targets,
             duration_targets,
@@ -37,8 +35,6 @@ class MetaStyleSpeechLossMain(nn.Module):
             D_s,
             D_t,
             mel_predictions,
-            teacher_style,
-            student_style,
             pitch_predictions,
             energy_predictions,
             log_duration_predictions,
@@ -58,8 +54,6 @@ class MetaStyleSpeechLossMain(nn.Module):
         pitch_targets.requires_grad = False
         energy_targets.requires_grad = False
         mel_targets.requires_grad = False
-        # style (teacher, student)
-        teacher_style.requires_grad = False
 
         if self.pitch_feature_level == "phoneme_level":
             pitch_predictions = pitch_predictions.masked_select(src_masks)
@@ -82,8 +76,6 @@ class MetaStyleSpeechLossMain(nn.Module):
         mel_targets = mel_targets.masked_select(mel_masks.unsqueeze(-1))
 
         mel_loss = self.mae_loss(mel_predictions, mel_targets)
-        teacher_student_loss = self.mae_loss(student_style, teacher_style)
-
 
         pitch_loss = self.mse_loss(pitch_predictions, pitch_targets)
         energy_loss = self.mse_loss(energy_predictions, energy_targets)
@@ -98,7 +90,7 @@ class MetaStyleSpeechLossMain(nn.Module):
 
         recon_loss = alpha * (mel_loss + duration_loss + pitch_loss + energy_loss)
         total_loss = (
-            recon_loss + D_s_loss + D_t_loss + teacher_student_loss
+            recon_loss + D_s_loss + D_t_loss
         )
 
         return (

@@ -103,9 +103,12 @@ class MelStyleEncoder(nn.Module):
 
         self.fc_2 = FCBlock(d_melencoder, d_melencoder)
 
-    def forward(self, mel, mask, style_vector_temp):
+    def forward(self, mel, mask):
 
-        enc_output = self.fc_2(style_vector_temp)
+        max_len = mel.shape[1]
+        slf_attn_mask = mask.unsqueeze(1).expand(-1, max_len, -1)
+
+        enc_output = self.fc_1(mel)
 
         # Spectral Processing
         for _, layer in enumerate(self.spectral_stack):
@@ -117,6 +120,13 @@ class MelStyleEncoder(nn.Module):
             enc_output = layer(enc_output)
             enc_output = residual + enc_output
 
+        # Multi-head self-attention
+        for _, layer in enumerate(self.slf_attn_stack):
+            residual = enc_output
+            enc_output, _ = layer(
+                enc_output, enc_output, enc_output, mask=slf_attn_mask
+            )
+            enc_output = residual + enc_output
 
         # Final Layer
         enc_output = self.fc_2(enc_output) # [B, T, H]

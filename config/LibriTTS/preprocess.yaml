@@ -4,7 +4,7 @@ path:
   corpus_path: "/home/jeonyj0612/silent-speech-v2/EMG_raw_data/"
   lexicon_path: "/home/jeonyj0612/silent-speech-v2/lexicon/librispeech-lexicon.txt"
   raw_path: "/home/jeonyj0612/silent-speech-v2/EMG_raw_data/"
-  preprocessed_path: "/home/jeonyj0612/silent-speech-v2/preprocessed_data/LibriTTS"
+  preprocessed_path: "/home/jeonyj0612/silent-speech-v2/preprocessed_data/LibriTTS-100"
 
 preprocessing:
   val_size: 512

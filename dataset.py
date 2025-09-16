@@ -2,7 +2,7 @@ import json
 import math
 import os
 import random
-import torch
+
 import numpy as np
 from torch.utils.data import Dataset
 
@@ -37,26 +37,6 @@ class Dataset(Dataset):
         speaker = self.speaker[idx]
         speaker_id = self.speaker_map[speaker]
         raw_text = self.raw_text[idx]
-        resemblyzer_embedded_path = os.path.join(
-            self.preprocessed_path,
-            "Resemblyzer",
-            "{}-Resemblyzer-{}.npy".format(speaker, basename),
-        )
-        resemblyzer_embedded = np.load(resemblyzer_embedded_path)
-
-        resemblyzer_type = random.choice(["Resemblyzer_075", "Resemblyzer_050", "Resemblyzer_025"])
-        # resemblyzer_embedded_path_student = os.path.join(
-        #     self.preprocessed_path,
-        #     "Resemblyzer_075",
-        #     "{}-Resemblyzer_075-{}.npy".format(speaker, basename), ######################################## 
-        # )
-
-        resemblyzer_embedded_path_student = os.path.join(
-            self.preprocessed_path,
-            resemblyzer_type,
-            "{}-{}-{}.npy".format(speaker, resemblyzer_type, basename),
-        )
-        resemblyzer_embedded_student = np.load(resemblyzer_embedded_path_student)
         phone = np.array(text_to_sequence(self.text[idx], self.cleaners))
         query_idx = random.choice(self.speaker_to_ids[speaker]) # Sample the query text
         raw_quary_text = self.raw_text[query_idx]
@@ -67,8 +47,6 @@ class Dataset(Dataset):
             "{}-mel-{}.npy".format(speaker, basename),
         )
         mel = np.load(mel_path)
-        mel_max_length, num_mel_bins = mel.shape
-
         pitch_path = os.path.join(
             self.preprocessed_path,
             "pitch",
@@ -94,7 +72,6 @@ class Dataset(Dataset):
         )
         quary_duration = np.load(quary_duration_path)
 
-
         sample = {
             "id": basename,
             "speaker": speaker_id,
@@ -103,8 +80,6 @@ class Dataset(Dataset):
             "quary_text": query_phone,
             "raw_quary_text": raw_quary_text,
             "mel": mel,
-            "resemblyzer_embedded": resemblyzer_embedded,
-            "resemblyzer_embedded_student": resemblyzer_embedded_student,
             "pitch": pitch,
             "energy": energy,
             "duration": duration,
@@ -146,8 +121,6 @@ class Dataset(Dataset):
         energies = [data[idx]["energy"] for idx in idxs]
         durations = [data[idx]["duration"] for idx in idxs]
         quary_durations = [data[idx]["quary_duration"] for idx in idxs]
-        resemblyzer_embedded = [data[idx]["resemblyzer_embedded"] for idx in idxs]
-        resemblyzer_embedded_student = [data[idx]["resemblyzer_embedded_student"] for idx in idxs]
 
         text_lens = np.array([text.shape[0] for text in texts])
         quary_text_lens = np.array([text.shape[0] for text in quary_texts])
@@ -172,8 +145,6 @@ class Dataset(Dataset):
             mels,
             mel_lens,
             max(mel_lens),
-            resemblyzer_embedded,
-            resemblyzer_embedded_student,
             pitches,
             energies,
             durations,
@@ -237,7 +208,7 @@ class BatchInferenceDataset(Dataset):
             "mel",
             "{}-mel-{}.npy".format(speaker, basename),
         )
-        mel = np.load(mel_path)        
+        mel = np.load(mel_path)
         pitch_path = os.path.join(
             self.preprocessed_path,
             "pitch",
@@ -256,7 +227,9 @@ class BatchInferenceDataset(Dataset):
             "{}-duration-{}.npy".format(speaker, basename),
         )
         duration = np.load(duration_path)
-        
+
+        return (basename, speaker_id, phone, raw_text, mel, pitch, energy, duration)
+ 
     def process_meta(self, filename):
         with open(filename, "r", encoding="utf-8") as f:
             name = []
