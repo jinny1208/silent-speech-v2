@@ -15,7 +15,7 @@ transformer:
   decoder_dropout: 0.1
 
 melencoder:
-  encoder_hidden: 256 #########
+  encoder_hidden: 128
   spectral_layer: 2
   temporal_layer: 2
   slf_attn_layer: 1

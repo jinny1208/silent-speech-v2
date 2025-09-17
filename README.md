@@ -139,3 +139,7 @@ The loss curves, synthesized mel-spectrograms, and audios are shown.
 - 300000 freq luhman
 - Random masking for mel-spectrogram (time and or frequency domain) during fine-tuning e2e of the entire architecture.
 - FastSpeech 기반
+
+- emg train and val filelist은 train.py and evaluate.py에서 바꿔야함
+- 추가적으로 utils 안에 있는 model과 tools.py를 수정해야 함. loss 부분도 maybe
+- filelist version2에서 sp} 를 }로 바꿈.

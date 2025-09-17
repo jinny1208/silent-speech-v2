@@ -5,3 +5,4 @@ preprocessed_data/
 output/
 __pycache__/
 utils/__pycache__
+text/__pycache__

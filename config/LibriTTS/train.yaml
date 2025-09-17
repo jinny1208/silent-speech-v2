@@ -3,7 +3,7 @@ path:
   log_path: "./output/log/1-EMGrawinput"
   result_path: "./output/result/1-EMGrawinput"
 optimizer:
-  batch_size: 28
+  batch_size: 16
   betas: [0.9, 0.98]
   eps: 0.000000001
   weight_decay: 0.0
@@ -16,8 +16,8 @@ optimizer:
   alpha: 10
 step:
   meta_learning_warmup: 10000000
-  total_step: 800000
+  total_step: 50000
   log_step: 100
   synth_step: 1000
   val_step: 1000
-  save_step: 50000
+  save_step: 5000

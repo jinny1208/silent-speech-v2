@@ -52,12 +52,12 @@ class StyleSpeech(nn.Module):
 
     def G(
             self,
-            style_vector,
-            texts,
-            src_masks,  
-            mel_masks,
+            style_vector, # 28, 1, 128
+            texts, # 28, 313
+            src_masks, # 28, 313
+            mel_masks, # 28, 2679
             max_mel_len,
-            p_targets=None,
+            p_targets=None, # 28, 314
             e_targets=None,
             d_targets=None,
             p_control=1.0,
