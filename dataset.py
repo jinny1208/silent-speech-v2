@@ -2,6 +2,7 @@ import json
 import math
 import os
 import random
+import pdb
 
 import numpy as np
 from torch.utils.data import Dataset
@@ -33,7 +34,7 @@ class Dataset(Dataset):
         return len(self.text)
 
     def __getitem__(self, idx):
-        basename = self.basename[idx]
+        basename = self.basename[idx] # '0_5-5_86_audio_clean'
         speaker = self.speaker[idx]
         speaker_id = self.speaker_map[speaker]
         raw_text = self.raw_text[idx]
@@ -71,6 +72,12 @@ class Dataset(Dataset):
             "{}-duration-{}.npy".format(self.speaker[query_idx], self.basename[query_idx]),
         )
         quary_duration = np.load(quary_duration_path)
+        emg_path = os.path.join(
+            self.preprocessed_path,
+            "emg",
+            "{}.npy".format(basename.replace('_audio_clean', '_emg')),
+        )
+        emg = np.load(emg_path)
 
         sample = {
             "id": basename,
@@ -79,7 +86,8 @@ class Dataset(Dataset):
             "raw_text": raw_text,
             "quary_text": query_phone,
             "raw_quary_text": raw_quary_text,
-            "mel": mel,
+            "mel": mel,            
+            "emg": emg,
             "pitch": pitch,
             "energy": energy,
             "duration": duration,
@@ -121,6 +129,7 @@ class Dataset(Dataset):
         energies = [data[idx]["energy"] for idx in idxs]
         durations = [data[idx]["duration"] for idx in idxs]
         quary_durations = [data[idx]["quary_duration"] for idx in idxs]
+        emg = [data[idx]["emg"] for idx in idxs]
 
         text_lens = np.array([text.shape[0] for text in texts])
         quary_text_lens = np.array([text.shape[0] for text in quary_texts])
@@ -134,6 +143,7 @@ class Dataset(Dataset):
         energies = pad_1D(energies)
         durations = pad_1D(durations)
         quary_durations = pad_1D(quary_durations)
+        emg = pad_2D(emg)
 
         return (
             ids,
@@ -145,6 +155,7 @@ class Dataset(Dataset):
             mels,
             mel_lens,
             max(mel_lens),
+            emg,
             pitches,
             energies,
             durations,
@@ -227,8 +238,14 @@ class BatchInferenceDataset(Dataset):
             "{}-duration-{}.npy".format(speaker, basename),
         )
         duration = np.load(duration_path)
-
-        return (basename, speaker_id, phone, raw_text, mel, pitch, energy, duration)
+        emg_path = os.path.join(
+            self.preprocessed_path,
+            "emg",
+            "{}.npy".format(basename.replace('_audio_clean', '_emg')),
+        )
+        emg = np.load(emg_path)
+        # pdb.set_trace()
+        return (basename, speaker_id, phone, raw_text, mel, emg, pitch, energy, duration)
  
     def process_meta(self, filename):
         with open(filename, "r", encoding="utf-8") as f:
@@ -250,9 +267,10 @@ class BatchInferenceDataset(Dataset):
         texts = [d[2] for d in data]
         raw_texts = [d[3] for d in data]
         mels = [d[4] for d in data]
-        pitches = [d[5] for d in data]
-        energies = [d[6] for d in data]
-        durations = [d[7] for d in data]
+        emg = [d[5] for d in data]
+        pitches = [d[6] for d in data]
+        energies = [d[7] for d in data]
+        durations = [d[8] for d in data]
 
         text_lens = np.array([text.shape[0] for text in texts])
         mel_lens = np.array([mel.shape[0] for mel in mels])
@@ -271,6 +289,7 @@ class BatchInferenceDataset(Dataset):
 
         texts = pad_1D(texts)
         mels = pad_2D(mels)
+        emg = pad_2D(emg)
 
         return (
             ids,
@@ -282,5 +301,6 @@ class BatchInferenceDataset(Dataset):
             mels,
             mel_lens,
             max(mel_lens),
+            emg,
             ref_infos,
         )

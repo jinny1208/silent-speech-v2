@@ -14,6 +14,13 @@ transformer:
   encoder_dropout: 0.1
   decoder_dropout: 0.1
 
+EMGTransformer:
+  encoder_layer: 6
+  encoder_hidden: 256
+  encoder_head: 8
+  encoder_dropout: 0.2
+  dim_feedforward: 3072
+
 melencoder:
   encoder_hidden: 128
   spectral_layer: 2

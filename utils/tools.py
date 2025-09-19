@@ -7,6 +7,7 @@ import numpy as np
 import matplotlib
 from scipy.io import wavfile
 from matplotlib import pyplot as plt
+import pdb
 
 
 matplotlib.use("Agg")
@@ -17,7 +18,7 @@ device = torch.device("cuda")
 
 
 def to_device(data, device):
-    if len(data) == 17:
+    if len(data) == 18:
         (
             ids,
             raw_texts,
@@ -28,6 +29,7 @@ def to_device(data, device):
             mels,
             mel_lens,
             max_mel_len,
+            emg,
             pitches,
             energies,
             durations,
@@ -45,6 +47,7 @@ def to_device(data, device):
         quary_src_lens = torch.from_numpy(quary_src_lens).to(device)
         mels = torch.from_numpy(mels).float().to(device)
         mel_lens = torch.from_numpy(mel_lens).to(device)
+        emg = torch.from_numpy(emg).float().to(device)
         pitches = torch.from_numpy(pitches).float().to(device)
         energies = torch.from_numpy(energies).to(device)
         durations = torch.from_numpy(durations).long().to(device)
@@ -60,6 +63,7 @@ def to_device(data, device):
             mels,
             mel_lens,
             max_mel_len,
+            emg,
             pitches,
             energies,
             durations,
@@ -70,7 +74,7 @@ def to_device(data, device):
             quary_durations,
         )
 
-    if len(data) == 10:
+    if len(data) == 11:
         (
             ids,
             raw_texts,
@@ -81,13 +85,17 @@ def to_device(data, device):
             mels,
             mel_lens,
             max_mel_len,
+            emg,
             ref_infos,
         ) = data
 
+        # pdb.set_trace()
         texts = torch.from_numpy(texts).long().to(device)
         src_lens = torch.from_numpy(src_lens).to(device)
         mels = torch.from_numpy(mels).float().to(device)
+
         mel_lens = torch.from_numpy(mel_lens).to(device)
+        emg = torch.from_numpy(emg).float().to(device)
 
         return (
             ids,
@@ -99,6 +107,7 @@ def to_device(data, device):
             mels,
             mel_lens,
             max_mel_len,
+            emg, 
             ref_infos,
         )
 
@@ -154,17 +163,17 @@ def synth_one_sample(targets, predictions, vocoder, model_config, preprocess_con
     mel_len = predictions[8][0].item()
     mel_target = targets[6][0, :mel_len].detach().transpose(0, 1)
     mel_prediction = predictions[0][0, :mel_len].detach().transpose(0, 1)
-    duration = targets[11][0, :src_len].detach().cpu().numpy()
+    duration = targets[12][0, :src_len].detach().cpu().numpy()
     if preprocess_config["preprocessing"]["pitch"]["feature"] == "phoneme_level":
-        pitch = targets[9][0, :src_len].detach().cpu().numpy()
+        pitch = targets[10][0, :src_len].detach().cpu().numpy()
         pitch = expand(pitch, duration)
     else:
-        pitch = targets[9][0, :mel_len].detach().cpu().numpy()
+        pitch = targets[10][0, :mel_len].detach().cpu().numpy()
     if preprocess_config["preprocessing"]["energy"]["feature"] == "phoneme_level":
-        energy = targets[10][0, :src_len].detach().cpu().numpy()
+        energy = targets[11][0, :src_len].detach().cpu().numpy()
         energy = expand(energy, duration)
     else:
-        energy = targets[10][0, :mel_len].detach().cpu().numpy()
+        energy = targets[11][0, :mel_len].detach().cpu().numpy()
 
     with open(
         os.path.join(preprocess_config["path"]["preprocessed_path"], "stats.json")

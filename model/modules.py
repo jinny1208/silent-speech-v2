@@ -2,7 +2,10 @@ import os
 import json
 import copy
 import math
+import random
+from typing import Optional, List
 from collections import OrderedDict
+import pdb
 
 import torch
 import torch.nn as nn
@@ -18,6 +21,10 @@ from .blocks import (
     Conv1DBlock,
     SALNFFTBlock,
     MultiHeadAttention,
+)
+
+from .AddBlocks import (
+    TransformerEncoderLayer
 )
 from text.symbols import symbols
 
@@ -132,7 +139,7 @@ class MelStyleEncoder(nn.Module):
         enc_output = self.fc_2(enc_output) # [B, T, H]
 
         # Temporal Average Pooling
-        enc_output = torch.mean(enc_output, dim=1, keepdim=True) # [B, 1, H]
+        enc_output = torch.mean(enc_output, dim=1, keepdim=True) # [B, 1, H] # 16, 1, 128
 
         return enc_output
 
@@ -207,7 +214,7 @@ class PhonemeEncoder(nn.Module):
             ]
         )
 
-    def forward(self, src_seq, w, mask, return_attns=False):
+    def forward(self, src_seq, w, mask, return_attns=False): # w is the style_vector
 
         enc_slf_attn_list = []
         batch_size, max_len = src_seq.shape[0], src_seq.shape[1]
@@ -238,6 +245,324 @@ class PhonemeEncoder(nn.Module):
                 enc_slf_attn_list += [enc_slf_attn]
 
         return enc_output
+    
+
+class PhonemeEncoderWoutStyle(nn.Module):
+    """ PhonemeText Encoder """
+
+    def __init__(self, config):
+        super(PhonemeEncoderWoutStyle, self).__init__()
+
+        n_position = config["max_seq_len"] + 1
+        n_src_vocab = len(symbols) + 1
+        d_word_vec = config["transformer"]["encoder_hidden"]
+        n_layers = config["transformer"]["encoder_layer"]
+        n_head = config["transformer"]["encoder_head"]
+        d_w = config["melencoder"]["encoder_hidden"]
+        d_k = d_v = (
+            config["transformer"]["encoder_hidden"]
+            // config["transformer"]["encoder_head"]
+        )
+        d_model = config["transformer"]["encoder_hidden"]
+        d_inner = config["transformer"]["conv_filter_size"]
+        kernel_size = config["transformer"]["conv_kernel_size"]
+        dropout = config["transformer"]["encoder_dropout"]
+
+        self.max_seq_len = config["max_seq_len"]
+        self.d_model = d_model
+
+        self.src_word_emb = nn.Embedding(
+            n_src_vocab, d_word_vec, padding_idx=0
+        )
+        self.phoneme_prenet = PhonemePreNet(config)
+        self.position_enc = nn.Parameter(
+            get_sinusoid_encoding_table(n_position, d_word_vec).unsqueeze(0),
+            requires_grad=False,
+        )
+
+        self.layer_stack = nn.ModuleList(
+            [
+                SALNFFTBlock(
+                    d_model, d_w, n_head, d_k, d_v, d_inner, kernel_size, dropout=dropout
+                )
+                for _ in range(n_layers)
+            ]
+        )
+
+    def forward(self, src_seq, mask, return_attns=False): # w is the style_vector
+
+        enc_slf_attn_list = []
+        batch_size, max_len = src_seq.shape[0], src_seq.shape[1]
+
+        # -- Prepare masks
+        slf_attn_mask = mask.unsqueeze(1).expand(-1, max_len, -1)
+
+        # -- PreNet
+        src_seq = self.phoneme_prenet(self.src_word_emb(src_seq), mask)
+
+        # -- Forward
+        if not self.training and src_seq.shape[1] > self.max_seq_len:
+            enc_output = src_seq + get_sinusoid_encoding_table(
+                src_seq.shape[1], self.d_model
+            )[: src_seq.shape[1], :].unsqueeze(0).expand(batch_size, -1, -1).to(
+                src_seq.device
+            )
+        else:
+            enc_output = src_seq + self.position_enc[
+                :, :max_len, :
+            ].expand(batch_size, -1, -1)
+
+        # for enc_layer in self.layer_stack:
+        #     enc_output, enc_slf_attn = enc_layer(
+        #         enc_output, w, mask=mask, slf_attn_mask=slf_attn_mask
+        #     )
+            # if return_attns:
+            #     enc_slf_attn_list += [enc_slf_attn]
+
+        return enc_output
+    
+
+class ResBlock(nn.Module):
+    def __init__(self, num_ins, num_outs, stride=1):
+        super().__init__()
+
+        self.conv1 = nn.Conv1d(num_ins, num_outs, 3, padding=1, stride=stride)
+        self.bn1 = nn.BatchNorm1d(num_outs)
+        self.conv2 = nn.Conv1d(num_outs, num_outs, 3, padding=1)
+        self.bn2 = nn.BatchNorm1d(num_outs)
+
+        if stride != 1 or num_ins != num_outs:
+            self.residual_path = nn.Conv1d(num_ins, num_outs, 1, stride=stride)
+            self.res_norm = nn.BatchNorm1d(num_outs)
+        else:
+            self.residual_path = None
+
+    def forward(self, x):
+        input_value = x
+
+        x = F.relu(self.bn1(self.conv1(x)))
+        x = self.bn2(self.conv2(x))
+
+        if self.residual_path is not None:
+            res = self.res_norm(self.residual_path(input_value))
+        else:
+            res = input_value
+
+        return F.relu(x + res)
+
+
+class EmgEncoder(nn.Module):
+    """ EMG Encoder (rewritten into new TTS framework style) """
+
+    def __init__(self, config):
+        super(EmgEncoder, self).__init__()
+
+        EMG_d_model = config["EMGTransformer"]["encoder_hidden"]
+        EMG_n_layers = config["EMGTransformer"]["encoder_layer"]
+        EMG_n_head = config["EMGTransformer"]["encoder_head"]
+        EMG_dropout = config["EMGTransformer"]["encoder_dropout"]
+        EMG_dim_feedforward = config["EMGTransformer"]["dim_feedforward"]
+
+        # Conv blocks for raw EMG features
+        self.conv_blocks = nn.Sequential(
+            ResBlock(8, EMG_d_model, 2),
+            ResBlock(EMG_d_model, EMG_d_model, 2),
+            ResBlock(EMG_d_model, EMG_d_model, 2),
+            ResBlock(EMG_d_model, EMG_d_model, 2),
+            ResBlock(EMG_d_model, EMG_d_model, 2),
+        )
+
+        self.w_raw_in = nn.Linear(EMG_d_model, EMG_d_model)
+
+        # Transformer encoder
+        encoder_layer = TransformerEncoderLayer(
+            d_model=EMG_d_model,
+            nhead=EMG_n_head,
+            relative_positional=True,
+            relative_positional_distance=100,
+            dim_feedforward=EMG_dim_feedforward,
+            dropout=EMG_dropout,
+        )
+        self.transformer = nn.TransformerEncoder(encoder_layer, EMG_n_layers)
+
+        self.d_model = EMG_d_model
+
+    def forward(self, x_raw):
+        """
+        x_raw: (batch, time, electrodes)
+        mask: optional padding mask
+        """
+
+        # Data augmentation during training
+        if self.training:
+            r = random.randrange(8)
+            if r > 0:
+                x_raw[:, :-r, :] = x_raw[:, r:, :]  # shift left
+                x_raw[:, -r:, :] = 0  # pad with zeros
+
+        # Conv encoder
+        # pdb.set_trace()
+        x_raw = x_raw.transpose(1, 2)  # (B, C, T) for conv
+        x_raw = self.conv_blocks(x_raw) # output shape: 16, 256, 3489 -> conv_layer 하나 더 했을 떄의 shape: 1366
+        x_raw = x_raw.transpose(1, 2)  # (B, T, C)
+        x_raw = self.w_raw_in(x_raw)
+
+        # Transformer
+        x = x_raw.transpose(0, 1)  # (T, B, C)
+        x = self.transformer(x)
+        x = x.transpose(0, 1)  # (B, T, C)
+
+        return x
+
+
+class EMG2PhonemeAligner(nn.Module):
+    """
+    Convert EMG frame-level embeddings (B, T, C) -> phoneme-level embeddings (B, Y, C).
+
+    Modes:
+      - supervised pooling (durations provided): averages EMG frames per phoneme span
+      - cross-attention (phoneme_enc provided): phoneme queries attend to EMG frames
+      - adaptive pooling fallback: adaptively pool EMG frames to length Y
+
+    Args:
+      d_model: embedding dimension (C)
+      use_mha_heads: number of heads for cross-attention (if used)
+    """
+
+    def __init__(self, d_model: int, use_mha_heads: int = 4):
+        super().__init__()
+        self.d_model = d_model
+        self.mha = nn.MultiheadAttention(embed_dim=d_model, num_heads=use_mha_heads, batch_first=False)
+        # small projection on EMG side to value space if you want (optional)
+        self.emg_value_proj = nn.Linear(d_model, d_model)
+        # stability eps
+        self.eps = 1e-8
+
+    def durations_mel_to_emg(self, durs_mel: torch.Tensor, audio_sr: int, hop_length: int, emg_sr: float):
+        """
+        Convert durations in mel frames (B, Y) -> durations in EMG frames (B, Y)
+        by converting mel frames -> seconds -> EMG frames (rounded to ints).
+        durs_mel: Tensor int (B, Y)
+        Returns: Tensor long (B, Y) summing approx to T_emg
+        """
+        # mel_frames -> seconds
+        frame_durations_seconds = durs_mel.float() * (hop_length / float(audio_sr))
+        emg_counts = torch.clamp((frame_durations_seconds * emg_sr).round().long(), min=0)
+        return emg_counts
+
+    def pool_by_durations(self, emg_feats: torch.Tensor, durs_emg: torch.Tensor):
+        """
+        emg_feats: (B, T, C)
+        durs_emg: (B, Y) integer counts summing to <= T (floor/truncation possible)
+        returns: (B, Y, C)
+        """
+        B, T, C = emg_feats.shape
+        device = emg_feats.device
+        Y = durs_emg.shape[1]
+
+        out = []
+        # cumulative indices
+        cum = torch.cumsum(durs_emg, dim=1)  # (B, Y)
+        starts = cum - durs_emg
+        for b in range(B):
+            feats_b = emg_feats[b]  # (T, C)
+            row = []
+            for yi in range(Y):
+                s = int(starts[b, yi].item())
+                e = int(cum[b, yi].item())
+                # clamp to available range
+                s_clamped = max(0, min(T, s))
+                e_clamped = max(0, min(T, e))
+                if e_clamped <= s_clamped:
+                    # zero vector if empty span
+                    row.append(torch.zeros(C, device=device))
+                else:
+                    seg = feats_b[s_clamped:e_clamped]  # (L, C)
+                    row.append(seg.mean(dim=0))
+            out.append(torch.stack(row, dim=0))  # (Y, C)
+        return torch.stack(out, dim=0)  # (B, Y, C)
+
+    def cross_attention_align(self, emg_feats: torch.Tensor, phoneme_enc: torch.Tensor):
+        """
+        Align using cross-attention: phoneme_enc queries EMG frames.
+        emg_feats: (B, T, C)
+        phoneme_enc: (B, Y, C)
+        returns: (B, Y, C)
+        """
+        # MultiheadAttention expects (S, B, E)
+        K = emg_feats.transpose(0, 1)  # (T, B, C)
+        Q = phoneme_enc.transpose(0, 1)  # (Y, B, C)
+        V = self.emg_value_proj(emg_feats).transpose(0, 1)  # (T, B, C)
+
+        attn_out, attn_weights = self.mha(Q, K, V)  # attn_out: (Y, B, C)
+        aligned = attn_out.transpose(0, 1)  # (B, Y, C)
+        return aligned
+
+    def adaptive_pool_to_length(self, emg_feats: torch.Tensor, target_len: int):
+        """
+        Use adaptive average pooling to map (B, T, C) -> (B, target_len, C).
+        """
+        B, T, C = emg_feats.shape
+        # pool expects (B, C, T)
+        x = emg_feats.transpose(1, 2)  # (B, C, T)
+        pooled = F.adaptive_avg_pool1d(x, output_size=target_len)  # (B, C, target_len)
+        return pooled.transpose(1, 2)  # (B, target_len, C)
+
+    def forward(
+        self,
+        emg_feats: torch.Tensor,
+        durations: Optional[torch.Tensor] = None,
+        durations_in_mel: bool = True,
+        audio_sr: int = 22050,
+        hop_length: int = 256,
+        emg_sr: float = 1000.0,
+        phoneme_enc: Optional[torch.Tensor] = None,
+        target_len: Optional[int] = None,
+    ):
+        """
+        Args:
+          emg_feats: (B, T, C) raw EMG embeddings from EMG encoder
+          durations: optional Tensor (B, Y) of ints (mel-frames or emg-frames depending on durations_in_mel)
+          phoneme_enc: optional phoneme encoder embeddings (B, Y, C) for cross-attention alignment
+          target_len: optional int to force output length Y (used with adaptive pooling)
+        Returns:
+          aligned_emg: (B, Y, C)
+        """
+        B, T, C = emg_feats.shape
+
+        # 1) If durations provided -> convert to EMG-frame counts if needed and pool
+        if durations is not None:
+            # durations: (B, Y)
+            if durations_in_mel:
+                # convert mel-frame durations -> emg-frame durations
+                with torch.no_grad():
+                    durs_emg = self.durations_mel_to_emg(durations, audio_sr=audio_sr, hop_length=hop_length, emg_sr=emg_sr)
+                    # Because rounding may not sum to exactly T, we may need to adjust the last phoneme to absorb remainder.
+                    # Compute per-batch remnant and add to last duration.
+                    sum_durs = durs_emg.sum(dim=1)  # (B,)
+                    # If sum_durs != T, adjust last element
+                    for b in range(B):
+                        rem = int(T - sum_durs[b].item())
+                        if rem != 0:
+                            durs_emg[b, -1] = max(0, int(durs_emg[b, -1].item()) + rem)
+            else:
+                durs_emg = durations.clone()
+
+            aligned = self.pool_by_durations(emg_feats, durs_emg)
+            return aligned
+
+        # 2) If phoneme encoder provided -> cross-attention
+        if phoneme_enc is not None:
+            aligned = self.cross_attention_align(emg_feats, phoneme_enc)
+            return aligned
+
+        # 3) Fallback: adaptive pooling to target_len
+        if target_len is not None:
+            return self.adaptive_pool_to_length(emg_feats, target_len)
+        else:
+            # fallback to returning mean-pooled single vector repeated Y=1
+            mean_vec = emg_feats.mean(dim=1, keepdim=True)  # (B,1,C)
+            return mean_vec
 
 
 class MelPreNet(nn.Module):
@@ -335,6 +660,84 @@ class MelDecoder(nn.Module):
                 dec_slf_attn_list += [dec_slf_attn]
 
         return dec_output, mask
+
+
+
+class MelDecoderWoutStyle(nn.Module):
+    """ MelDecoder """
+
+    def __init__(self, config):
+        super(MelDecoderWoutStyle, self).__init__()
+
+        n_position = config["max_seq_len"] + 1
+        d_word_vec = config["transformer"]["decoder_hidden"]
+        n_layers = config["transformer"]["decoder_layer"]
+        n_head = config["transformer"]["decoder_head"]
+        d_w = config["melencoder"]["encoder_hidden"]
+        d_k = d_v = (
+            config["transformer"]["decoder_hidden"]
+            // config["transformer"]["decoder_head"]
+        )
+        d_model = config["transformer"]["decoder_hidden"]
+        d_inner = config["transformer"]["conv_filter_size"]
+        kernel_size = config["transformer"]["conv_kernel_size"]
+        dropout = config["transformer"]["decoder_dropout"]
+
+        self.max_seq_len = config["max_seq_len"]
+        self.d_model = d_model
+
+        self.mel_prenet = MelPreNet(config)
+        self.position_enc = nn.Parameter(
+            get_sinusoid_encoding_table(n_position, d_word_vec).unsqueeze(0),
+            requires_grad=False,
+        )
+
+        self.layer_stack = nn.ModuleList(
+            [
+                SALNFFTBlock(
+                    d_model, d_w, n_head, d_k, d_v, d_inner, kernel_size, dropout=dropout
+                )
+                for _ in range(n_layers)
+            ]
+        )
+
+    def forward(self, enc_seq, mask, return_attns=False):
+
+        dec_slf_attn_list = []
+        batch_size, max_len = enc_seq.shape[0], enc_seq.shape[1]
+
+        # -- PreNet
+        enc_seq = self.mel_prenet(enc_seq, mask)
+
+        # -- Forward
+        if not self.training and enc_seq.shape[1] > self.max_seq_len:
+            # -- Prepare masks
+            slf_attn_mask = mask.unsqueeze(1).expand(-1, max_len, -1)
+            dec_output = enc_seq + get_sinusoid_encoding_table(
+                enc_seq.shape[1], self.d_model
+            )[: enc_seq.shape[1], :].unsqueeze(0).expand(batch_size, -1, -1).to(
+                enc_seq.device
+            )
+        else:
+            max_len = min(max_len, self.max_seq_len)
+
+            # -- Prepare masks
+            slf_attn_mask = mask.unsqueeze(1).expand(-1, max_len, -1)
+            dec_output = enc_seq[:, :max_len, :] + self.position_enc[
+                :, :max_len, :
+            ].expand(batch_size, -1, -1)
+            mask = mask[:, :max_len]
+            slf_attn_mask = slf_attn_mask[:, :, :max_len]
+
+        # for dec_layer in self.layer_stack:
+        #     dec_output, dec_slf_attn = dec_layer(
+        #         dec_output, w, mask=mask, slf_attn_mask=slf_attn_mask
+        #     )
+        #     if return_attns:
+        #         dec_slf_attn_list += [dec_slf_attn]
+
+        return dec_output, mask
+
 
 
 class VarianceAdaptor(nn.Module):

@@ -40,7 +40,7 @@ def main(args, configs):
 
     # Get dataset
     dataset = Dataset(
-        "V2-train-emg-afterStep10inMisc.txt", preprocess_config, train_config, sort=True, drop_last=True
+        "V2-train-emg.txt", preprocess_config, train_config, sort=True, drop_last=True
     ) # train_filtered.txt or V1-train-emg-afterStep10inMisc.txt
     batch_size = train_config["optimizer"]["batch_size"]
     group_size = 4  # Set this larger than 1 to enable sorting in Dataset

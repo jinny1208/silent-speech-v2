@@ -6,3 +6,4 @@ output/
 __pycache__/
 utils/__pycache__
 text/__pycache__/
+model/__pycache__/

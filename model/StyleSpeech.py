@@ -7,8 +7,12 @@ import torch.nn.functional as F
 
 from .modules import (
     MelStyleEncoder,
-    PhonemeEncoder,
-    MelDecoder, 
+    # PhonemeEncoder,
+    PhonemeEncoderWoutStyle,
+    EmgEncoder,
+    EMG2PhonemeAligner,
+    # MelDecoder,
+    MelDecoderWoutStyle,
     VarianceAdaptor,
     PhonemeDiscriminator,
     StyleDiscriminator,
@@ -24,13 +28,17 @@ class StyleSpeech(nn.Module):
         self.model_config = model_config
 
         self.mel_style_encoder = MelStyleEncoder(preprocess_config, model_config)
-        self.phoneme_encoder = PhonemeEncoder(model_config)
+        # self.phoneme_encoder = PhonemeEncoder(model_config)
+        self.phoneme_encoder_WoutStyle = PhonemeEncoderWoutStyle(model_config)
+        self.emg_encoder = EmgEncoder(model_config)
         self.variance_adaptor = VarianceAdaptor(preprocess_config, model_config)
-        self.mel_decoder = MelDecoder(model_config)
+        # self.mel_decoder = MelDecoder(model_config)
+        self.mel_decoder_WoutStyle = MelDecoderWoutStyle(model_config)
         self.phoneme_linear = nn.Linear(
             model_config["transformer"]["encoder_hidden"],
             model_config["transformer"]["encoder_hidden"],
         )
+        self.emg_aligner = EMG2PhonemeAligner(d_model=model_config["EMGTransformer"]["encoder_hidden"], use_mha_heads=4)
         self.mel_linear = nn.Linear(
             model_config["transformer"]["decoder_hidden"],
             preprocess_config["preprocessing"]["mel"]["n_mel_channels"],
@@ -57,6 +65,7 @@ class StyleSpeech(nn.Module):
             src_masks, # 28, 313
             mel_masks, # 28, 2679
             max_mel_len,
+            emg,
             p_targets=None, # 28, 314
             e_targets=None,
             d_targets=None,
@@ -64,8 +73,19 @@ class StyleSpeech(nn.Module):
             e_control=1.0,
             d_control=1.0,
         ):
-        output = self.phoneme_encoder(texts, style_vector, src_masks)
-        output = self.phoneme_linear(output)
+        output = self.phoneme_encoder_WoutStyle(texts, src_masks) # 16, 171, 256 --> phoneme_encoder_WoutStyle로 바꿨을 때의 shape: 16, X, 256
+        emg_output = self.emg_encoder(emg)
+        aligned_emg = self.emg_aligner(
+            emg_output,
+            durations=None,                # optional: (B, Y) in mel frames // d_targets
+            durations_in_mel=False,              # True if d_targets are mel-frame counts // True
+            audio_sr=22050,
+            hop_length=256,         # set this in model config (e.g., 256)
+            emg_sr=1000,      # compute earlier (1000.XX)
+            phoneme_enc=None,                 # provide phoneme queries for cross-attention (optional) // output
+            target_len=None                     # optional fallback
+        )
+        output = self.phoneme_linear(aligned_emg) # 16, 257, 256
 
         (
             output,
@@ -88,8 +108,8 @@ class StyleSpeech(nn.Module):
             d_control,
         )
 
-        output, mel_masks = self.mel_decoder(output, style_vector, mel_masks)
-        output = self.mel_linear(output)
+        output, mel_masks = self.mel_decoder_WoutStyle(output, mel_masks) #output: 16, 2366, 256 // style_vector: 16, 1, 256 --> output.shape: 16, 1000, 256
+        output = self.mel_linear(output) #resulting output shape: 16, 1000, 80
 
         return (
             output,
@@ -110,6 +130,7 @@ class StyleSpeech(nn.Module):
         mels,
         mel_lens,
         max_mel_len,
+        emg,
         p_targets=None,
         e_targets=None,
         d_targets=None,
@@ -136,6 +157,7 @@ class StyleSpeech(nn.Module):
             src_masks,  
             mel_masks,
             max_mel_len,
+            emg,
             p_targets,
             e_targets,
             d_targets,

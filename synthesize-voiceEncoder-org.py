@@ -20,7 +20,7 @@ from utils.tools import to_device, synth_samples
 from dataset import BatchInferenceDataset
 from text import text_to_sequence
 
-from resemblyzer import preprocess_wav, VoiceEncoder
+# from resemblyzer import preprocess_wav, VoiceEncoder
 resemblyzerEnc = VoiceEncoder()
 
 
@@ -169,7 +169,7 @@ def synthesize(model, step, configs, vocoder, batchs, control_values):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--restore_step", type=int, default=500000)
+    parser.add_argument("--restore_step", type=int, default=35000)
     args = parser.parse_args()
 
     mode = "single"
