@@ -20,8 +20,8 @@ random.seed(1234)
 class Preprocessor:
     def __init__(self, config):
         self.config = config
-        self.in_dir = config["path"]["raw_path"]
-        self.out_dir = config["path"]["preprocessed_path"]
+        self.in_dir = config["path"]["raw_path2"]
+        self.out_dir = config["path"]["preprocessed_path2"]
         self.val_size = config["preprocessing"]["val_size"]
         self.sampling_rate = config["preprocessing"]["audio"]["sampling_rate"]
         self.hop_length = config["preprocessing"]["stft"]["hop_length"]
@@ -89,6 +89,7 @@ class Preprocessor:
                 # print(tg_path)
                 if os.path.exists(tg_path):
                     ret = self.process_utterance(speaker, chapter, basename)
+
                     if ret is None:
                         continue
                     else:
@@ -223,7 +224,7 @@ class Preprocessor:
         #####################
 
 
-
+        # pdb.set_trace()
         # Compute fundamental frequency
         pitch, t = pw.dio(
             wav.astype(np.float64),

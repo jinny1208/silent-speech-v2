@@ -7,3 +7,4 @@ __pycache__/
 utils/__pycache__
 text/__pycache__/
 model/__pycache__/
+preprocessor/__pycache__/

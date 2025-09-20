@@ -199,7 +199,7 @@ def main(args, configs):
 
 
 if __name__ == "__main__":
-    sys.argv = ['train.py', '-p', 'config/LibriTTS/preprocess.yaml', '-m', 'config/LibriTTS/model.yaml', '-t', 'config/LibriTTS/train.yaml']
+    sys.argv = ['train.py', '--restore_step', '5000', '-p', 'config/LibriTTS/preprocess.yaml', '-m', 'config/LibriTTS/model.yaml', '-t', 'config/LibriTTS/train.yaml']
     parser = argparse.ArgumentParser()
     parser.add_argument("--restore_step", type=int, default=0)
     parser.add_argument(

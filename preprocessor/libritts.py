@@ -9,8 +9,8 @@ from text import _clean_text
 
 
 def prepare_align(config):
-    in_dir = config["path"]["corpus_path"]
-    out_dir = config["path"]["raw_path"]
+    in_dir = config["path"]["corpus_path2"]
+    out_dir = config["path"]["raw_path2"]
     sampling_rate = config["preprocessing"]["audio"]["sampling_rate"]
     max_wav_value = config["preprocessing"]["audio"]["max_wav_value"]
     cleaners = config["preprocessing"]["text"]["text_cleaners"]
