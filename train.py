@@ -16,7 +16,7 @@ from dataset import Dataset
 
 from evaluate import evaluate
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 device = torch.device("cuda")
 
@@ -40,7 +40,7 @@ def main(args, configs):
 
     # Get dataset
     dataset = Dataset(
-        "V2-train-emg.txt", preprocess_config, train_config, sort=True, drop_last=True
+        "V2-train.txt", preprocess_config, train_config, sort=True, drop_last=True
     ) # train_filtered.txt or V1-train-emg-afterStep10inMisc.txt
     batch_size = train_config["optimizer"]["batch_size"]
     group_size = 4  # Set this larger than 1 to enable sorting in Dataset
@@ -198,8 +198,8 @@ def main(args, configs):
         epoch += 1
 
 
-if __name__ == "__main__":
-    sys.argv = ['train.py', '--restore_step', '5000', '-p', 'config/LibriTTS/preprocess.yaml', '-m', 'config/LibriTTS/model.yaml', '-t', 'config/LibriTTS/train.yaml']
+if __name__ == "__main__": # '--restore_step', ''
+    sys.argv = ['train.py', '-p', 'config/LibriTTS/preprocess.yaml', '-m', 'config/LibriTTS/model.yaml', '-t', 'config/LibriTTS/train.yaml']
     parser = argparse.ArgumentParser()
     parser.add_argument("--restore_step", type=int, default=0)
     parser.add_argument(
