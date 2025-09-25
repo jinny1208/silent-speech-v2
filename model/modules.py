@@ -283,7 +283,7 @@ class PhonemeEncoderWoutStyle(nn.Module):
         self.layer_stack = nn.ModuleList(
             [
                 SALNFFTBlock(
-                    d_model, d_w, n_head, d_k, d_v, d_inner, kernel_size, dropout=dropout
+                    d_model, n_head, d_k, d_v, d_inner, kernel_size, dropout=dropout
                 )
                 for _ in range(n_layers)
             ]
@@ -312,12 +312,12 @@ class PhonemeEncoderWoutStyle(nn.Module):
                 :, :max_len, :
             ].expand(batch_size, -1, -1)
 
-        # for enc_layer in self.layer_stack:
-        #     enc_output, enc_slf_attn = enc_layer(
-        #         enc_output, w, mask=mask, slf_attn_mask=slf_attn_mask
-        #     )
-            # if return_attns:
-            #     enc_slf_attn_list += [enc_slf_attn]
+        for enc_layer in self.layer_stack:
+            enc_output, enc_slf_attn = enc_layer(
+                enc_output, mask=mask, slf_attn_mask=slf_attn_mask
+            )
+            if return_attns:
+                enc_slf_attn_list += [enc_slf_attn]
 
         return enc_output
     
@@ -369,7 +369,6 @@ class EmgEncoder(nn.Module):
             ResBlock(EMG_d_model, EMG_d_model, 2),
             ResBlock(EMG_d_model, EMG_d_model, 2),
             ResBlock(EMG_d_model, EMG_d_model, 2),
-            ResBlock(EMG_d_model, EMG_d_model, 2),
         )
 
         self.w_raw_in = nn.Linear(EMG_d_model, EMG_d_model)
@@ -413,6 +412,33 @@ class EmgEncoder(nn.Module):
         x = x.transpose(0, 1)  # (B, T, C)
 
         return x
+
+class EMG2PhonemeLengthPredictor(nn.Module):
+    def __init__(self, input_dim: int, hidden_dim: int = 128):
+        """
+        Args:
+            input_dim: dimension of EMG embeddings (C)
+            hidden_dim: hidden size for MLP
+        """
+        super().__init__()
+        # Pool EMG over time first
+        self.fc1 = nn.Linear(input_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, hidden_dim // 2)
+        self.fc_out = nn.Linear(hidden_dim // 2, 1)  # predict scalar length
+
+    def forward(self, emg_feats: torch.Tensor):
+        """
+        Args:
+            emg_feats: (B, T, C)
+        Returns:
+            predicted_lengths: (B,) float
+        """
+        # Pool EMG over time (mean)
+        x = emg_feats.mean(dim=1)  # (B, C)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        y = self.fc_out(x)  # (B,1)
+        return y.squeeze(1)  # (B,)
 
 
 class EMG2PhonemeAligner(nn.Module):
@@ -630,7 +656,7 @@ class MelDecoder(nn.Module):
         batch_size, max_len = enc_seq.shape[0], enc_seq.shape[1]
 
         # -- PreNet
-        enc_seq = self.mel_prenet(enc_seq, mask)
+        # enc_seq = self.mel_prenet(enc_seq, mask)
 
         # -- Forward
         if not self.training and enc_seq.shape[1] > self.max_seq_len:
@@ -695,7 +721,7 @@ class MelDecoderWoutStyle(nn.Module):
         self.layer_stack = nn.ModuleList(
             [
                 SALNFFTBlock(
-                    d_model, d_w, n_head, d_k, d_v, d_inner, kernel_size, dropout=dropout
+                    d_model, n_head, d_k, d_v, d_inner, kernel_size, dropout=dropout
                 )
                 for _ in range(n_layers)
             ]
@@ -707,7 +733,7 @@ class MelDecoderWoutStyle(nn.Module):
         batch_size, max_len = enc_seq.shape[0], enc_seq.shape[1]
 
         # -- PreNet
-        enc_seq = self.mel_prenet(enc_seq, mask)
+        # enc_seq = self.mel_prenet(enc_seq, mask)
 
         # -- Forward
         if not self.training and enc_seq.shape[1] > self.max_seq_len:
@@ -728,13 +754,6 @@ class MelDecoderWoutStyle(nn.Module):
             ].expand(batch_size, -1, -1)
             mask = mask[:, :max_len]
             slf_attn_mask = slf_attn_mask[:, :, :max_len]
-
-        # for dec_layer in self.layer_stack:
-        #     dec_output, dec_slf_attn = dec_layer(
-        #         dec_output, w, mask=mask, slf_attn_mask=slf_attn_mask
-        #     )
-        #     if return_attns:
-        #         dec_slf_attn_list += [dec_slf_attn]
 
         return dec_output, mask
 

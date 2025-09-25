@@ -3,12 +3,15 @@ import math
 import os
 import random
 import pdb
-
+import glob
 import numpy as np
 from torch.utils.data import Dataset
 
 from text import text_to_sequence
 from utils.tools import pad_1D, pad_2D, expand
+from torchvision.io import read_video
+from torchvision.transforms.functional import rgb_to_grayscale
+
 
 random.seed(1234)
 
@@ -78,7 +81,25 @@ class Dataset(Dataset):
             "{}.npy".format(basename.replace('_audio_clean', '_emg')),
         )
         emg = np.load(emg_path)
+        # video_path_candidates = glob.glob(os.path.join(
+        #     self.preprocessed_path, 
+        #     "talkinghead",
+        #     f"*{basename}*_VC_audio_roi.mp4")
+        # )
+        # if len(video_path_candidates)>1:
+        #     video_path_candidates = random.choice(video_path_candidates)
+        # if video_path_candidates:
+        #     video, audio, info = read_video(video_path_candidates, pts_unit="sec")  # (T, H, W, C)
+            # video = video.float() / 255.0
+            # video = video.permute(0, 3, 1, 2)  # (T, C, H, W)
 
+            # # Check and crop if needed
+            # if video.shape[2:] == (512, 512):
+            #     video = self.center_crop(video, 96, 96)  # (T, 3, 96, 96)
+            # # Convert to grayscale
+            # roi_features = rgb_to_grayscale(video)  # (T, 1, 96, 96)
+            # roi_features = roi_features.detach().cpu().numpy()
+        
         sample = {
             "id": basename,
             "speaker": speaker_id,
@@ -106,7 +127,7 @@ class Dataset(Dataset):
             raw_text = []
             speaker_to_ids = dict()
             for i, line in enumerate(f.readlines()):
-                n, s, t, r = line.strip("\n").split("|")
+                n, s, t, r, TalkHeadspeakerID = line.strip("\n").split("|")
                 name.append(n)
                 speaker.append(s)
                 text.append(t)
@@ -116,6 +137,13 @@ class Dataset(Dataset):
                 else:
                     speaker_to_ids[s] += [i]
             return name, speaker, text, raw_text, speaker_to_ids
+        
+    def center_crop(video, crop_h, crop_w):
+        """Crop center region of shape (T, C, H, W) to (T, C, crop_h, crop_w)."""
+        _, _, h, w = video.shape
+        top = (h - crop_h) // 2
+        left = (w - crop_w) // 2
+        return video[:, :, top:top+crop_h, left:left+crop_w]
 
     def reprocess(self, data, idxs):
         ids = [data[idx]["id"] for idx in idxs]
@@ -254,7 +282,7 @@ class BatchInferenceDataset(Dataset):
             text = []
             raw_text = []
             for line in f.readlines():
-                n, s, t, r = line.strip("\n").split("|")
+                n, s, t, r, TalkHeadspeakerID = line.strip("\n").split("|")
                 name.append(n)
                 speaker.append(s)
                 text.append(t)

@@ -7,15 +7,8 @@ import numpy as np
 import matplotlib
 from scipy.io import wavfile
 from matplotlib import pyplot as plt
-import pdb
-
-
 matplotlib.use("Agg")
-
-
-# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 device = torch.device("cuda")
-
 
 def to_device(data, device):
     if len(data) == 18:
@@ -118,14 +111,11 @@ def log(
     if losses is not None:
         logger.add_scalar("Loss/total_loss", losses[0], step)
         logger.add_scalar("Loss/mel_loss", losses[1], step)
-        logger.add_scalar("Loss/pitch_loss", losses[2], step)
-        logger.add_scalar("Loss/energy_loss", losses[3], step)
-        logger.add_scalar("Loss/duration_loss", losses[4], step)
-        logger.add_scalar("Loss/adv_D_s_loss", losses[5], step)
-        logger.add_scalar("Loss/adv_D_t_loss", losses[6], step)
-        logger.add_scalar("Loss/D_s_loss", losses[7], step)
-        logger.add_scalar("Loss/D_t_loss", losses[8], step)
-        logger.add_scalar("Loss/cls_loss", losses[9], step)
+        logger.add_scalar("Loss/adv_D_s_loss", losses[2], step)
+        logger.add_scalar("Loss/adv_D_t_loss", losses[3], step)
+        logger.add_scalar("Loss/D_s_loss", losses[4], step)
+        logger.add_scalar("Loss/D_t_loss", losses[5], step)
+        logger.add_scalar("Loss/cls_loss", losses[6], step)
 
     if fig is not None:
         logger.add_figure(tag, fig)
@@ -163,17 +153,6 @@ def synth_one_sample(targets, predictions, vocoder, model_config, preprocess_con
     mel_len = predictions[8][0].item()
     mel_target = targets[6][0, :mel_len].detach().transpose(0, 1)
     mel_prediction = predictions[0][0, :mel_len].detach().transpose(0, 1)
-    duration = targets[12][0, :src_len].detach().cpu().numpy()
-    if preprocess_config["preprocessing"]["pitch"]["feature"] == "phoneme_level":
-        pitch = targets[10][0, :src_len].detach().cpu().numpy()
-        pitch = expand(pitch, duration)
-    else:
-        pitch = targets[10][0, :mel_len].detach().cpu().numpy()
-    if preprocess_config["preprocessing"]["energy"]["feature"] == "phoneme_level":
-        energy = targets[11][0, :src_len].detach().cpu().numpy()
-        energy = expand(energy, duration)
-    else:
-        energy = targets[11][0, :mel_len].detach().cpu().numpy()
 
     with open(
         os.path.join(preprocess_config["path"]["preprocessed_path"], "stats.json")
@@ -183,8 +162,8 @@ def synth_one_sample(targets, predictions, vocoder, model_config, preprocess_con
 
     fig = plot_mel(
         [
-            (mel_prediction.cpu().numpy(), pitch, energy),
-            (mel_target.cpu().numpy(), pitch, energy),
+            (mel_prediction.cpu().numpy()),
+            (mel_target.cpu().numpy()),
         ],
         stats,
         ["Synthetized Spectrogram", "Ground-Truth Spectrogram"],
@@ -220,16 +199,6 @@ def synth_samples(targets, predictions, vocoder, model_config, preprocess_config
         mel_len = predictions[8][i].item()
         mel_prediction = predictions[0][i, :mel_len].detach().transpose(0, 1)
         duration = predictions[4][i, :src_len].detach().cpu().numpy()
-        if preprocess_config["preprocessing"]["pitch"]["feature"] == "phoneme_level":
-            pitch = predictions[1][i, :src_len].detach().cpu().numpy()
-            pitch = expand(pitch, duration)
-        else:
-            pitch = predictions[1][i, :mel_len].detach().cpu().numpy()
-        if preprocess_config["preprocessing"]["energy"]["feature"] == "phoneme_level":
-            energy = predictions[2][i, :src_len].detach().cpu().numpy()
-            energy = expand(energy, duration)
-        else:
-            energy = predictions[2][i, :mel_len].detach().cpu().numpy()
 
         with open(
             os.path.join(preprocess_config["path"]["preprocessed_path"], "stats.json")
@@ -239,7 +208,7 @@ def synth_samples(targets, predictions, vocoder, model_config, preprocess_config
 
         fig = plot_mel(
             [
-                (mel_prediction.cpu().numpy(), pitch, energy),
+                (mel_prediction.cpu().numpy()),
                 targets[-1][i],
             ],
             stats,

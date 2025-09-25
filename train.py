@@ -40,8 +40,8 @@ def main(args, configs):
 
     # Get dataset
     dataset = Dataset(
-        "V2-train.txt", preprocess_config, train_config, sort=True, drop_last=True
-    ) # train_filtered.txt or V1-train-emg-afterStep10inMisc.txt
+        "V5-val_merged_filelist-noDup-noMisalignedSpeakerID.txt", preprocess_config, train_config, sort=True, drop_last=True
+    )
     batch_size = train_config["optimizer"]["batch_size"]
     group_size = 4  # Set this larger than 1 to enable sorting in Dataset
     assert batch_size * group_size < len(dataset)
@@ -114,7 +114,7 @@ def main(args, configs):
                 # Meta Learning
                 if step > meta_learning_warmup:
                     # Step 2: Update D_t and D_s
-                    output_disc = model.module.meta_learner_2(*(batch[2:]))
+                    output_disc = model.module.meta_learner_2(*(batch[2]))
 
                     losses_2 = Loss_2(batch[2], output_disc)
                     total_loss_disc = losses_2[0]
@@ -127,7 +127,7 @@ def main(args, configs):
                     else:
                         losses = [l.item() for l in (losses_1+tuple([torch.zeros(1).to(device) for _ in range(3)]))]
                     message1 = "Step {}/{}, ".format(step, total_step)
-                    message2 = "Total Loss: {:.4f}, Mel Loss: {:.4f}, Pitch Loss: {:.4f}, Energy Loss: {:.4f}, Duration Loss: {:.4f}, Adversarial_D_s Loss: {:.4f}, Adversarial_D_t Loss: {:.4f}, D_s Loss: {:.4f}, D_t Loss: {:.4f}, cls Loss: {:.4f}".format(
+                    message2 = "Total Loss: {:.4f}, Mel Loss: {:.4f}, cls Loss: {:.4f}".format(
                         *losses
                     )
 
@@ -141,7 +141,7 @@ def main(args, configs):
                 if step % synth_step == 0:
                     fig, wav_reconstruction, wav_prediction, tag = synth_one_sample(
                         batch,
-                        output[2:],
+                        output,
                         vocoder,
                         model_config,
                         preprocess_config,

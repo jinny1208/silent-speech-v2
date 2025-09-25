@@ -1,7 +1,7 @@
 path:
-  ckpt_path: "./output/ckpt/1-EMGrawinput"
-  log_path: "./output/log/1-EMGrawinput"
-  result_path: "./output/result/1-EMGrawinput"
+  ckpt_path: "./output/ckpt/2-EMGLrnfromPhonEnc"
+  log_path: "./output/log/2-EMGLrnfromPhonEnc"
+  result_path: "./output/result/2-EMGLrnfromPhonEnc"
 optimizer:
   batch_size: 8
   betas: [0.9, 0.98]
