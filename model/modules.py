@@ -688,7 +688,6 @@ class MelDecoder(nn.Module):
         return dec_output, mask
 
 
-
 class MelDecoderWoutStyle(nn.Module):
     """ MelDecoder """
 
@@ -712,7 +711,6 @@ class MelDecoderWoutStyle(nn.Module):
         self.max_seq_len = config["max_seq_len"]
         self.d_model = d_model
 
-        self.mel_prenet = MelPreNet(config)
         self.position_enc = nn.Parameter(
             get_sinusoid_encoding_table(n_position, d_word_vec).unsqueeze(0),
             requires_grad=False,
@@ -731,9 +729,6 @@ class MelDecoderWoutStyle(nn.Module):
 
         dec_slf_attn_list = []
         batch_size, max_len = enc_seq.shape[0], enc_seq.shape[1]
-
-        # -- PreNet
-        # enc_seq = self.mel_prenet(enc_seq, mask)
 
         # -- Forward
         if not self.training and enc_seq.shape[1] > self.max_seq_len:

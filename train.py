@@ -11,13 +11,12 @@ from tqdm import tqdm
 
 from utils.model import get_model, get_vocoder, get_param_num
 from utils.tools import to_device, log, synth_one_sample
-from model import MetaStyleSpeechLossMain, MetaStyleSpeechLossDisc
+from model import MetaStyleSpeechLossMain
 from dataset import Dataset
 
 from evaluate import evaluate
 
 # os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 device = torch.device("cuda")
 
 
@@ -57,7 +56,6 @@ def main(args, configs):
     model = nn.DataParallel(model)
     num_param = get_param_num(model)
     Loss_1 = MetaStyleSpeechLossMain(preprocess_config, model_config, train_config).to(device)
-    Loss_2 = MetaStyleSpeechLossDisc(preprocess_config, model_config).to(device)
     print("Number of StyleSpeech Parameters:", num_param)
 
     # Load vocoder
@@ -98,12 +96,8 @@ def main(args, configs):
                 # Warm-up Stage
                 if step <= meta_learning_warmup:
                     # Forward
-                    output = (None, None, *model(*(batch[2:-5])))
-                # Meta Learning
-                else:
-                    # Step 1: Update Enc_s and G
-                    output = model.module.meta_learner_1(*(batch[2:]))
-
+                    output = model(*(batch[2:-5]))
+                
                 # Cal Loss
                 losses_1 = Loss_1(batch, output)
                 total_loss = losses_1[0]
@@ -111,19 +105,9 @@ def main(args, configs):
                 # Backward
                 backward(model, optimizer_main, total_loss, step, grad_acc_step, grad_clip_thresh)
 
-                # Meta Learning
-                if step > meta_learning_warmup:
-                    # Step 2: Update D_t and D_s
-                    output_disc = model.module.meta_learner_2(*(batch[2]))
-
-                    losses_2 = Loss_2(batch[2], output_disc)
-                    total_loss_disc = losses_2[0]
-
-                    backward(model, optimizer_disc, total_loss_disc, step, grad_acc_step, grad_clip_thresh)
-
                 if step % log_step == 0:
                     if step > meta_learning_warmup:
-                        losses = [l.item() for l in (losses_1+losses_2[1:])]
+                        losses = [l.item() for l in (losses_1)]
                     else:
                         losses = [l.item() for l in (losses_1+tuple([torch.zeros(1).to(device) for _ in range(3)]))]
                     message1 = "Step {}/{}, ".format(step, total_step)

@@ -2,6 +2,7 @@ import os
 import json
 
 import torch
+import pdb
 import torch.nn.functional as F
 import numpy as np
 import matplotlib
@@ -113,9 +114,7 @@ def log(
         logger.add_scalar("Loss/mel_loss", losses[1], step)
         logger.add_scalar("Loss/adv_D_s_loss", losses[2], step)
         logger.add_scalar("Loss/adv_D_t_loss", losses[3], step)
-        logger.add_scalar("Loss/D_s_loss", losses[4], step)
-        logger.add_scalar("Loss/D_t_loss", losses[5], step)
-        logger.add_scalar("Loss/cls_loss", losses[6], step)
+        logger.add_scalar("Loss/cls_loss", losses[4], step)
 
     if fig is not None:
         logger.add_figure(tag, fig)
@@ -147,12 +146,12 @@ def expand(values, durations):
 
 
 def synth_one_sample(targets, predictions, vocoder, model_config, preprocess_config):
-
     basename = targets[0][0]
-    src_len = predictions[7][0].item()
-    mel_len = predictions[8][0].item()
+    src_len = predictions[3][0].item()
+    mel_len = predictions[4][0].item()
     mel_target = targets[6][0, :mel_len].detach().transpose(0, 1)
     mel_prediction = predictions[0][0, :mel_len].detach().transpose(0, 1)
+
 
     with open(
         os.path.join(preprocess_config["path"]["preprocessed_path"], "stats.json")
@@ -162,10 +161,10 @@ def synth_one_sample(targets, predictions, vocoder, model_config, preprocess_con
 
     fig = plot_mel(
         [
-            (mel_prediction.cpu().numpy()),
-            (mel_target.cpu().numpy()),
+            (mel_prediction.cpu().numpy(), None, None),
+            (mel_target.cpu().numpy(), None, None),
         ],
-        stats,
+        None,
         ["Synthetized Spectrogram", "Ground-Truth Spectrogram"],
     )
 
@@ -211,7 +210,7 @@ def synth_samples(targets, predictions, vocoder, model_config, preprocess_config
                 (mel_prediction.cpu().numpy()),
                 targets[-1][i],
             ],
-            stats,
+            None,
             ["Synthetized Spectrogram", "Reference Spectrogram"],
         )
         plt.savefig(os.path.join(path, "{}.png".format(basename)))
@@ -234,9 +233,6 @@ def plot_mel(data, stats, titles):
     fig, axes = plt.subplots(len(data), 1, squeeze=False)
     if titles is None:
         titles = [None for i in range(len(data))]
-    pitch_min, pitch_max, pitch_mean, pitch_std, energy_min, energy_max = stats
-    pitch_min = pitch_min * pitch_std + pitch_mean
-    pitch_max = pitch_max * pitch_std + pitch_mean
 
     def add_axis(fig, old_ax):
         ax = fig.add_axes(old_ax.get_position(), anchor="W")
@@ -245,39 +241,12 @@ def plot_mel(data, stats, titles):
 
     for i in range(len(data)):
         mel, pitch, energy = data[i]
-        pitch = pitch * pitch_std + pitch_mean
         axes[i][0].imshow(mel, origin="lower")
         axes[i][0].set_aspect(2.5, adjustable="box")
         axes[i][0].set_ylim(0, mel.shape[0])
         axes[i][0].set_title(titles[i], fontsize="medium")
         axes[i][0].tick_params(labelsize="x-small", left=False, labelleft=False)
         axes[i][0].set_anchor("W")
-
-        ax1 = add_axis(fig, axes[i][0])
-        ax1.plot(pitch, color="tomato", linewidth=.7)
-        ax1.set_xlim(0, mel.shape[1])
-        ax1.set_ylim(0, pitch_max)
-        ax1.set_ylabel("F0", color="tomato")
-        ax1.tick_params(
-            labelsize="x-small", colors="tomato", bottom=False, labelbottom=False
-        )
-
-        ax2 = add_axis(fig, axes[i][0])
-        ax2.plot(energy, color="darkviolet", linewidth=.7)
-        ax2.set_xlim(0, mel.shape[1])
-        ax2.set_ylim(energy_min, energy_max)
-        ax2.set_ylabel("Energy", color="darkviolet")
-        ax2.yaxis.set_label_position("right")
-        ax2.tick_params(
-            labelsize="x-small",
-            colors="darkviolet",
-            bottom=False,
-            labelbottom=False,
-            left=False,
-            labelleft=False,
-            right=True,
-            labelright=True,
-        )
 
     return fig
 

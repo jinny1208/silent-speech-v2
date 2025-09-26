@@ -13,11 +13,6 @@ from tqdm import tqdm
 import audio as Audio
 import torch
 
-# from speechbrain.pretrained import EncoderClassifier
-# classifier_Ecapa = EncoderClassifier.from_hparams(source="speechbrain/spkrec-ecapa-voxceleb")
-# classifier_Xvector = EncoderClassifier.from_hparams(source="speechbrain/spkrec-xvect-voxceleb", savedir="pretrained_models/spkrec-xvect-voxceleb")
-
-
 
 random.seed(1234)
 

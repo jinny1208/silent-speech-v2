@@ -33,8 +33,6 @@ class MetaStyleSpeechLossMain(nn.Module):
             _,
         ) = inputs[6:]
         (
-            D_s,
-            D_t,
             mel_predictions,
             src_masks,
             mel_masks,
@@ -54,22 +52,14 @@ class MetaStyleSpeechLossMain(nn.Module):
         mel_loss = self.mae_loss(mel_predictions, mel_targets)
 
         alpha = 1
-        D_s_loss = D_t_loss = torch.tensor([0.], device=mel_predictions.device, requires_grad=False)
-        if D_s is not None and D_t is not None:
-            D_s_loss = self.mse_loss(D_s, torch.ones_like(D_s, requires_grad=False))
-            D_t_loss = self.mse_loss(D_t, torch.ones_like(D_t, requires_grad=False))
-            alpha = self.alpha
-
         recon_loss = alpha * (mel_loss)
         total_loss = (
-            recon_loss + D_s_loss + D_t_loss
+            recon_loss
         )
 
         return (
             total_loss,
             mel_loss,
-            D_s_loss,
-            D_t_loss,
         )
 
 
