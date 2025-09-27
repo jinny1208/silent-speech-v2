@@ -750,6 +750,13 @@ class MelDecoderWoutStyle(nn.Module):
             mask = mask[:, :max_len]
             slf_attn_mask = slf_attn_mask[:, :, :max_len]
 
+        for dec_layer in self.layer_stack:
+            dec_output, dec_slf_attn = dec_layer(
+                dec_output, mask=mask, slf_attn_mask=slf_attn_mask
+            )
+            if return_attns:
+                dec_slf_attn_list += [dec_slf_attn]
+
         return dec_output, mask
 
 

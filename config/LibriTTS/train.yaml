@@ -1,11 +1,11 @@
 path:
-  ckpt_path: "./output/ckpt/2-EMGLrnfromPhonEnc"
-  log_path: "./output/log/2-EMGLrnfromPhonEnc"
-  result_path: "./output/result/2-EMGLrnfromPhonEnc"
+  ckpt_path: "./output/ckpt/1-GeneralTest-NoVarianceAdaptor"
+  log_path: "./output/log/1-GeneralTest-NoVarianceAdaptor"
+  result_path: "./output/result/1-GeneralTest-NoVarianceAdaptor"
 emgInput:
   emgFlag: False
 optimizer:
-  batch_size: 4
+  batch_size: 8
   betas: [0.9, 0.98]
   eps: 0.000000001
   weight_decay: 0.0
