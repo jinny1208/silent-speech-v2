@@ -6,6 +6,7 @@ import yaml
 import numpy as np
 import os
 import json
+from functools import partial
 
 import librosa
 import pyworld as pw
@@ -100,34 +101,6 @@ def preprocess_english(text, preprocess_config):
     phones = re.sub(r"\{[^\w\s]?\}", "{sp}", phones)
     phones = phones.replace("}{", " ")
 
-    print("Raw Text Sequence: {}".format(text))
-    print("Phoneme Sequence: {}".format(phones))
-    sequence = np.array(
-        text_to_sequence(
-            phones, preprocess_config["preprocessing"]["text"]["text_cleaners"]
-        )
-    )
-
-    return np.array(sequence)
-
-
-def preprocess_mandarin(text, preprocess_config):
-    lexicon = read_lexicon(preprocess_config["path"]["lexicon_path"])
-
-    phones = []
-    pinyins = [
-        p[0]
-        for p in pinyin(
-            text, style=Style.TONE3, strict=False, neutral_tone_with_five=True
-        )
-    ]
-    for p in pinyins:
-        if p in lexicon:
-            phones += lexicon[p]
-        else:
-            phones.append("sp")
-
-    phones = "{" + " ".join(phones) + "}"
     print("Raw Text Sequence: {}".format(text))
     print("Phoneme Sequence: {}".format(phones))
     sequence = np.array(
@@ -248,18 +221,16 @@ if __name__ == "__main__":
     # Preprocess texts
     if args.mode == "batch":
         # Get dataset
-        dataset = BatchInferenceDataset(args.source, preprocess_config)
+        dataset = BatchInferenceDataset(args.source, preprocess_config, emgFlag=train_config["emgInput"]["emgFlag"])
         batchs = DataLoader(
             dataset,
             batch_size=8,
-            collate_fn=dataset.collate_fn,
-        )
+            collate_fn=partial(dataset.collate_fn, emgFlag=train_config["emgInput"]["emgFlag"]),
+    )
     if args.mode == "single":
         ids = raw_texts = [args.text[:100]]
         if preprocess_config["preprocessing"]["text"]["language"] == "en":
             texts = np.array([preprocess_english(args.text, preprocess_config)])
-        elif preprocess_config["preprocessing"]["text"]["language"] == "zh":
-            texts = np.array([preprocess_mandarin(args.text, preprocess_config)])
         text_lens = np.array([len(texts[0])])
         mels, mel_lens, ref_info = get_audio(preprocess_config, args.ref_audio)
         batchs = [(["_".join([os.path.basename(args.ref_audio).strip(".wav"), id]) for id in ids], \

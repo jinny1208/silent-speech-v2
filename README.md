@@ -143,3 +143,9 @@ The loss curves, synthesized mel-spectrograms, and audios are shown.
 - emg train and val filelist은 train.py and evaluate.py에서 바꿔야함
 - 추가적으로 utils 안에 있는 model과 tools.py를 수정해야 함. loss 부분도 maybe
 - filelist version2에서 sp} 를 }로 바꿈.
+
+- branch 3-FastSpeechRevision_noVarianceAdapt:
+    * when running LibriSpeech, find all emgFlag=True --> emgFlag=False 
+    * when running Emg, find all emgFlag=False --> emgFlag=False
+    * fix config accordingly
+    * 그리고 Librispeech --> Emg으로 넘어갈 때, batch=4로... 클러스터면 안해도 되고

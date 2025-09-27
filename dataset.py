@@ -18,7 +18,7 @@ random.seed(1234)
 
 class Dataset(Dataset):
     def __init__(
-        self, filename, preprocess_config, train_config, sort=False, drop_last=False
+        self, filename, preprocess_config, train_config, sort=False, drop_last=False, emgFlag=False
     ):
         self.dataset_name = preprocess_config["dataset"]
         self.preprocessed_path = preprocess_config["path"]["preprocessed_path"]
@@ -26,12 +26,13 @@ class Dataset(Dataset):
         self.batch_size = train_config["optimizer"]["batch_size"]
 
         self.basename, self.speaker, self.text, self.raw_text, self.speaker_to_ids = self.process_meta(
-            filename
+            filename, emgFlag
         )
         with open(os.path.join(self.preprocessed_path, "speakers.json")) as f:
             self.speaker_map = json.load(f)
         self.sort = sort
         self.drop_last = drop_last
+        self.emgFlag = emgFlag
 
     def __len__(self):
         return len(self.text)
@@ -75,12 +76,28 @@ class Dataset(Dataset):
             "{}-duration-{}.npy".format(self.speaker[query_idx], self.basename[query_idx]),
         )
         quary_duration = np.load(quary_duration_path)
-        emg_path = os.path.join(
-            self.preprocessed_path,
-            "emg",
-            "{}.npy".format(basename.replace('_audio_clean', '_emg')),
-        )
-        emg = np.load(emg_path)
+        if self.emgFlag:
+            emg_path = os.path.join(
+                self.preprocessed_path,
+                "emg",
+                "{}.npy".format(basename.replace('_audio_clean', '_emg')),
+            )
+            emg = np.load(emg_path)
+
+            sample = {
+            "id": basename,
+            "speaker": speaker_id,
+            "text": phone,
+            "raw_text": raw_text,
+            "quary_text": query_phone,
+            "raw_quary_text": raw_quary_text,
+            "mel": mel,            
+            "emg": emg,
+            "pitch": pitch,
+            "energy": energy,
+            "duration": duration,
+            "quary_duration": quary_duration,
+        }
         # video_path_candidates = glob.glob(os.path.join(
         #     self.preprocessed_path, 
         #     "talkinghead",
@@ -100,24 +117,24 @@ class Dataset(Dataset):
             # roi_features = rgb_to_grayscale(video)  # (T, 1, 96, 96)
             # roi_features = roi_features.detach().cpu().numpy()
         
-        sample = {
-            "id": basename,
-            "speaker": speaker_id,
-            "text": phone,
-            "raw_text": raw_text,
-            "quary_text": query_phone,
-            "raw_quary_text": raw_quary_text,
-            "mel": mel,            
-            "emg": emg,
-            "pitch": pitch,
-            "energy": energy,
-            "duration": duration,
-            "quary_duration": quary_duration,
-        }
+        else:
+            sample = {
+                "id": basename,
+                "speaker": speaker_id,
+                "text": phone,
+                "raw_text": raw_text,
+                "quary_text": query_phone,
+                "raw_quary_text": raw_quary_text,
+                "mel": mel,
+                "pitch": pitch,
+                "energy": energy,
+                "duration": duration,
+                "quary_duration": quary_duration,
+            }
 
         return sample
 
-    def process_meta(self, filename):
+    def process_meta(self, filename, emgFlag):
         with open(
             os.path.join(self.preprocessed_path, filename), "r", encoding="utf-8"
         ) as f:
@@ -127,7 +144,10 @@ class Dataset(Dataset):
             raw_text = []
             speaker_to_ids = dict()
             for i, line in enumerate(f.readlines()):
-                n, s, t, r, TalkHeadspeakerID = line.strip("\n").split("|")
+                if emgFlag:
+                    n, s, t, r, TalkingHeadID = line.strip("\n").split("|")
+                else:
+                    n, s, t, r, *_ = line.strip("\n").split("|")
                 name.append(n)
                 speaker.append(s)
                 text.append(t)
@@ -145,7 +165,7 @@ class Dataset(Dataset):
         left = (w - crop_w) // 2
         return video[:, :, top:top+crop_h, left:left+crop_w]
 
-    def reprocess(self, data, idxs):
+    def reprocess(self, data, idxs, emgFlag):
         ids = [data[idx]["id"] for idx in idxs]
         speakers = [data[idx]["speaker"] for idx in idxs]
         texts = [data[idx]["text"] for idx in idxs]
@@ -157,7 +177,6 @@ class Dataset(Dataset):
         energies = [data[idx]["energy"] for idx in idxs]
         durations = [data[idx]["duration"] for idx in idxs]
         quary_durations = [data[idx]["quary_duration"] for idx in idxs]
-        emg = [data[idx]["emg"] for idx in idxs]
 
         text_lens = np.array([text.shape[0] for text in texts])
         quary_text_lens = np.array([text.shape[0] for text in quary_texts])
@@ -171,9 +190,12 @@ class Dataset(Dataset):
         energies = pad_1D(energies)
         durations = pad_1D(durations)
         quary_durations = pad_1D(quary_durations)
-        emg = pad_2D(emg)
 
-        return (
+        if emgFlag:
+            emg = [data[idx]["emg"] for idx in idxs]
+            emg = pad_2D(emg)
+
+            return (
             ids,
             raw_texts,
             speakers,
@@ -194,7 +216,29 @@ class Dataset(Dataset):
             quary_durations,
         )
 
-    def collate_fn(self, data):
+        else:
+            return (
+            ids,
+            raw_texts,
+            speakers,
+            texts,
+            text_lens,
+            max(text_lens),
+            mels,
+            mel_lens,
+            max(mel_lens),
+            pitches,
+            energies,
+            durations,
+            raw_quary_texts,
+            quary_texts,
+            quary_text_lens,
+            max(quary_text_lens),
+            quary_durations,
+        )
+
+
+    def collate_fn(self, data, emgFlag):
         data_size = len(data)
 
         if self.sort:
@@ -211,21 +255,23 @@ class Dataset(Dataset):
 
         output = list()
         for idx in idx_arr:
-            output.append(self.reprocess(data, idx))
+            # pdb.set_trace()
+            output.append(self.reprocess(data, idx, emgFlag))
 
         return output
 
 
 class BatchInferenceDataset(Dataset):
-    def __init__(self, filepath, preprocess_config):
+    def __init__(self, filepath, preprocess_config, emgFlag=False):
         self.cleaners = preprocess_config["preprocessing"]["text"]["text_cleaners"]
         self.pitch_feature_level = preprocess_config["preprocessing"]["pitch"]["feature"]
         self.energy_feature_level = preprocess_config["preprocessing"]["energy"]["feature"]
         self.preprocessed_path = preprocess_config["path"]["preprocessed_path"]
 
         self.basename, self.speaker, self.text, self.raw_text = self.process_meta(
-            filepath
+            filepath, emgFlag
         )
+        self.emgFlag=emgFlag
         with open(
             os.path.join(
                 preprocess_config["path"]["preprocessed_path"], "speakers.json"
@@ -266,39 +312,51 @@ class BatchInferenceDataset(Dataset):
             "{}-duration-{}.npy".format(speaker, basename),
         )
         duration = np.load(duration_path)
-        emg_path = os.path.join(
-            self.preprocessed_path,
-            "emg",
-            "{}.npy".format(basename.replace('_audio_clean', '_emg')),
-        )
-        emg = np.load(emg_path)
+        if self.emgFlag:
+            emg_path = os.path.join(
+                self.preprocessed_path,
+                "emg",
+                "{}.npy".format(basename.replace('_audio_clean', '_emg')),
+            )
+            emg = np.load(emg_path)
         # pdb.set_trace()
-        return (basename, speaker_id, phone, raw_text, mel, emg, pitch, energy, duration)
+            return (basename, speaker_id, phone, raw_text, mel, emg, pitch, energy, duration)
+        else: 
+            return (basename, speaker_id, phone, raw_text, mel, pitch, energy, duration)
  
-    def process_meta(self, filename):
+    def process_meta(self, filename, emgFlag):
         with open(filename, "r", encoding="utf-8") as f:
             name = []
             speaker = []
             text = []
             raw_text = []
             for line in f.readlines():
-                n, s, t, r, TalkHeadspeakerID = line.strip("\n").split("|")
+                if emgFlag:
+                    n, s, t, r, TalkingHeadID = line.strip("\n").split("|")
+                else:
+                    n, s, t, r = line.strip("\n").split("|")
                 name.append(n)
                 speaker.append(s)
                 text.append(t)
                 raw_text.append(r)
             return name, speaker, text, raw_text
 
-    def collate_fn(self, data):
+    def collate_fn(self, data, emgFlag):
         ids = [d[0] for d in data]
         speakers = np.array([d[1] for d in data])
         texts = [d[2] for d in data]
         raw_texts = [d[3] for d in data]
         mels = [d[4] for d in data]
-        emg = [d[5] for d in data]
-        pitches = [d[6] for d in data]
-        energies = [d[7] for d in data]
-        durations = [d[8] for d in data]
+        if emgFlag:
+            emg = [d[5] for d in data]
+            pitches = [d[6] for d in data]
+            energies = [d[7] for d in data]
+            durations = [d[8] for d in data]
+            emg = pad_2D(emg)
+        else:
+            pitches = [d[5] for d in data]
+            energies = [d[6] for d in data]
+            durations = [d[7] for d in data]
 
         text_lens = np.array([text.shape[0] for text in texts])
         mel_lens = np.array([mel.shape[0] for mel in mels])
@@ -317,18 +375,32 @@ class BatchInferenceDataset(Dataset):
 
         texts = pad_1D(texts)
         mels = pad_2D(mels)
-        emg = pad_2D(emg)
-
-        return (
-            ids,
-            raw_texts,
-            speakers,
-            texts,
-            text_lens,
-            max(text_lens),
-            mels,
-            mel_lens,
-            max(mel_lens),
-            emg,
-            ref_infos,
-        )
+        
+        if emgFlag:
+            print(emgFlag)
+            return (
+                ids,
+                raw_texts,
+                speakers,
+                texts,
+                text_lens,
+                max(text_lens),
+                mels,
+                mel_lens,
+                max(mel_lens),
+                emg,
+                ref_infos,
+            )
+        else:
+            return (
+                ids,
+                raw_texts,
+                speakers,
+                texts,
+                text_lens,
+                max(text_lens),
+                mels,
+                mel_lens,
+                max(mel_lens),
+                ref_infos,
+            )

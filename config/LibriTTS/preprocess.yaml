@@ -1,15 +1,23 @@
 dataset: "LibriTTS"
 
 path:
+  #### WHEN USING EMGSPEECH - training
+  # corpus_path: "/home/jeonyj0612/silent-speech-v2/EMG_raw_data/"
+  # lexicon_path: "/home/jeonyj0612/silent-speech-v2/lexicon/emgspeech-lexicon.txt" #librispeech or emgspeech
+  # raw_path: "/home/jeonyj0612/silent-speech-v2/EMG_raw_data/"
+  # preprocessed_path: "/home/jeonyj0612/silent-speech-v2/preprocessed_data/silent_speech_processed_V2/" #LibriTTS-100 or silent_speech_preprocessed
+
+  #### WHEN USING LIBRISPEECH - training
   corpus_path: "/home/jeonyj0612/silent-speech-v2/EMG_raw_data/"
-  lexicon_path: "/home/jeonyj0612/silent-speech-v2/lexicon/emgspeech-lexicon.txt" #librispeech or emgspeech
+  lexicon_path: "/home/jeonyj0612/silent-speech-v2/lexicon/librispeech-lexicon.txt" #librispeech or emgspeech
   raw_path: "/home/jeonyj0612/silent-speech-v2/EMG_raw_data/"
-  preprocessed_path: "/home/jeonyj0612/silent-speech-v2/preprocessed_data/silent_speech_processed_V2/" #LibriTTS-100 or silent_speech_preprocessed
+  preprocessed_path: "/home/jeonyj0612/silent-speech-v2/preprocessed_data/LibriTTS-100/" #LibriTTS-100 or silent_speech_preprocessed
   
-  corpus_path2: "/home/jeonyj0612/silent-speech-v2/Dataset/EMG_raw_data/EMG_raw_data_processed_beforePrepareAlign-CorrectSilentNonSilentAlign"
-  lexicon_path2: "/home/jeonyj0612/silent-speech-v2/lexicon/emgspeech-lexicon.txt" #librispeech or emgspeech
-  raw_path2: "/home/jeonyj0612/silent-speech-v2/EMG_raw_data"
-  preprocessed_path2: "/home/jeonyj0612/silent-speech-v2/preprocessed_data/silent_speech_processed_V2" #LibriTTS-100 or silent_speech_preprocessed
+  #### #### WHEN USING EMGSPEECH - preprocessing
+  # corpus_path2: "/home/jeonyj0612/silent-speech-v2/Dataset/EMG_raw_data/EMG_raw_data_processed_beforePrepareAlign-CorrectSilentNonSilentAlign"
+  # lexicon_path2: "/home/jeonyj0612/silent-speech-v2/lexicon/emgspeech-lexicon.txt" #librispeech or emgspeech
+  # raw_path2: "/home/jeonyj0612/silent-speech-v2/EMG_raw_data"
+  # preprocessed_path2: "/home/jeonyj0612/silent-speech-v2/preprocessed_data/silent_speech_processed_V2" #LibriTTS-100 or silent_speech_preprocessed
 
 
 

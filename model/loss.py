@@ -18,20 +18,35 @@ class MetaStyleSpeechLossMain(nn.Module):
         self.mae_loss = nn.L1Loss()
 
     def forward(self, inputs, predictions):
-        (
-            mel_targets,
-            _,
-            _,
-            _,
-            pitch_targets,
-            energy_targets,
-            duration_targets,
-            _,
-            _,
-            _,
-            _,
-            _,
-        ) = inputs[6:]
+        if len(inputs[6:]) == 12:
+            (
+                mel_targets,
+                _,
+                _,
+                _,
+                pitch_targets,
+                energy_targets,
+                duration_targets,
+                _,
+                _,
+                _,
+                _,
+                _,
+            ) = inputs[6:]
+        else:
+            (
+                mel_targets,
+                _,
+                _,
+                pitch_targets,
+                energy_targets,
+                duration_targets,
+                _,
+                _,
+                _,
+                _,
+                _,
+            ) = inputs[6:]
         (
             mel_predictions,
             src_masks,
@@ -62,45 +77,3 @@ class MetaStyleSpeechLossMain(nn.Module):
             mel_loss,
         )
 
-
-class MetaStyleSpeechLossDisc(nn.Module):
-    """ Meta-StyleSpeech Loss for Step 2 """
-
-    def __init__(self, preprocess_config, model_config):
-        super(MetaStyleSpeechLossDisc, self).__init__()
-        self.pitch_feature_level = preprocess_config["preprocessing"]["pitch"][
-            "feature"
-        ]
-        self.energy_feature_level = preprocess_config["preprocessing"]["energy"][
-            "feature"
-        ]
-        self.mse_loss = nn.MSELoss()
-        self.mae_loss = nn.L1Loss()
-        self.cross_entropy_loss = nn.CrossEntropyLoss()
-
-    def forward(self, speakers, predictions):
-        (
-            D_t_s,
-            D_t_q,
-            D_s_s,
-            D_s_q,
-            style_logit,
-        ) = predictions
-        speakers.requires_grad = False
-
-        D_t_loss = self.mse_loss(D_t_s, torch.ones_like(D_t_s, requires_grad=False))\
-                    + self.mse_loss(D_t_q, torch.zeros_like(D_t_q, requires_grad=False))
-        D_s_loss = self.mse_loss(D_s_s, torch.ones_like(D_s_s, requires_grad=False))\
-                    + self.mse_loss(D_s_q, torch.zeros_like(D_s_q, requires_grad=False))
-        cls_loss = self.cross_entropy_loss(style_logit, speakers)
-
-        total_loss = (
-            D_t_loss + D_s_loss + cls_loss
-        )
-
-        return (
-            total_loss,
-            D_s_loss,
-            D_t_loss,
-            cls_loss,
-        )

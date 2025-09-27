@@ -1,7 +1,7 @@
 import argparse
 import os
 import sys
-
+from functools import partial
 import torch
 import yaml
 import torch.nn as nn
@@ -39,8 +39,8 @@ def main(args, configs):
 
     # Get dataset
     dataset = Dataset(
-        "V5-val_merged_filelist-noDup-noMisalignedSpeakerID.txt", preprocess_config, train_config, sort=True, drop_last=True
-    )
+        "train_filtered.txt", preprocess_config, train_config, sort=True, drop_last=True, emgFlag=train_config["emgInput"]["emgFlag"],
+    ) # train_filtered OR # V5-val_merged_filelist-noDup-noMisalignedSpeakerID.txt
     batch_size = train_config["optimizer"]["batch_size"]
     group_size = 4  # Set this larger than 1 to enable sorting in Dataset
     assert batch_size * group_size < len(dataset)
@@ -48,7 +48,7 @@ def main(args, configs):
         dataset,
         batch_size=batch_size * group_size,
         shuffle=True,
-        collate_fn=dataset.collate_fn,
+        collate_fn=partial(dataset.collate_fn, emgFlag=train_config["emgInput"]["emgFlag"]),
     )
 
     # Prepare model
@@ -82,6 +82,7 @@ def main(args, configs):
     save_step = train_config["step"]["save_step"]
     synth_step = train_config["step"]["synth_step"]
     val_step = train_config["step"]["val_step"]
+    emgFlag = train_config["emgInput"]["emgFlag"]
 
     outer_bar = tqdm(total=total_step, desc="Training", position=0)
     outer_bar.n = args.restore_step
@@ -95,8 +96,13 @@ def main(args, configs):
 
                 # Warm-up Stage
                 if step <= meta_learning_warmup:
-                    # Forward
-                    output = model(*(batch[2:-5]))
+                    if emgFlag:
+                        output = model(*(batch[2:-5]))   # includes emg
+                    else:
+                        # inject None in place of emg
+                        no_emg_batch = list(batch[2:-5])
+                        no_emg_batch.insert(7, None)   # 6th position = where emg would be
+                        output = model(*no_emg_batch)
                 
                 # Cal Loss
                 losses_1 = Loss_1(batch, output)
@@ -153,7 +159,7 @@ def main(args, configs):
 
                 if step % val_step == 0:
                     model.eval()
-                    message = evaluate(model, step, configs, val_logger, vocoder, len(losses))
+                    message = evaluate(model, step, configs, val_logger, vocoder, len(losses), emgFlag)
                     with open(os.path.join(val_log_path, "log.txt"), "a") as f:
                         f.write(message + "\n")
                     outer_bar.write(message)
@@ -182,8 +188,8 @@ def main(args, configs):
         epoch += 1
 
 
-if __name__ == "__main__": # '--restore_step', ''
-    sys.argv = ['train.py', '-p', 'config/LibriTTS/preprocess.yaml', '-m', 'config/LibriTTS/model.yaml', '-t', 'config/LibriTTS/train.yaml']
+if __name__ == "__main__": # '--restore_step', '1000',
+    sys.argv = ['train.py', '--restore_step', '5000', '-p', 'config/LibriTTS/preprocess.yaml', '-m', 'config/LibriTTS/model.yaml', '-t', 'config/LibriTTS/train.yaml']
     parser = argparse.ArgumentParser()
     parser.add_argument("--restore_step", type=int, default=0)
     parser.add_argument(

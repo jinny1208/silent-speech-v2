@@ -18,7 +18,28 @@ def get_model(args, configs, device, train=False):
             "{}.pth.tar".format(args.restore_step),
         )
         ckpt = torch.load(ckpt_path)
-        model.load_state_dict(ckpt["model"])
+        # --- filter checkpoint dict manually ---
+        ckpt_state = ckpt["model"]
+        model_state = model.state_dict()
+
+        # keep only overlapping + same shape keys
+        filtered_state = {}
+        for k, v in ckpt_state.items():
+            if k in model_state and v.shape == model_state[k].shape:
+                filtered_state[k] = v
+            else:
+                print(f"[Skip] {k} from checkpoint (not in model or shape mismatch)")
+
+        # load safely
+        msg = model.load_state_dict(filtered_state, strict=False)
+
+        if msg.missing_keys:
+            print(f"[Warning] Missing keys when loading: {msg.missing_keys}")
+        if msg.unexpected_keys:
+            print(f"[Warning] Unexpected keys in checkpoint: {msg.unexpected_keys}")
+        
+        ## original checkpoint loading
+        # model.load_state_dict(ckpt["model"])
 
     if train:
         scheduled_optim_main = ScheduledOptimMain(
