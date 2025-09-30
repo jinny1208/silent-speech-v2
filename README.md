@@ -147,5 +147,5 @@ The loss curves, synthesized mel-spectrograms, and audios are shown.
 - branch 3-FastSpeechRevision_noVarianceAdapt:
     * when running LibriSpeech, find all emgFlag=True --> emgFlag=False 
     * when running Emg, find all emgFlag=False --> emgFlag=False
-    * fix config accordingly
+    * fix config accordingly --> emgFlag: False or True
     * 그리고 Librispeech --> Emg으로 넘어갈 때, batch=4로... 클러스터면 안해도 되고

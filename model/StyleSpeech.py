@@ -91,7 +91,7 @@ class StyleSpeech(nn.Module):
         output = self.phoneme_linear(output)
 
         (
-            output,
+            output, # shape: 4, 820, 1024
             p_predictions,
             e_predictions,
             log_d_predictions,
@@ -101,7 +101,7 @@ class StyleSpeech(nn.Module):
         ) = self.variance_adaptor(
             output,
             src_masks,
-            mel_masks,
+            mel_masks, # 4, 820
             max_mel_len,
             p_targets,
             e_targets,
@@ -111,11 +111,15 @@ class StyleSpeech(nn.Module):
             d_control,
         )
 
-        output, mel_masks = self.mel_decoder_WoutStyle(output, mel_masks) #output: 16, 2366, 256 // style_vector: 16, 1, 256 --> output.shape: 16, 1000, 256
-        output = self.mel_linear(output) #resulting output shape: 16, 1000, 80
+        output, mel_masks = self.mel_decoder_WoutStyle(output, mel_masks) #output result not input: 16, 820, 1024 // style_vector: 16, 1, 256 --> output.shape: 16, 1000, 256
+        output = self.mel_linear(output) #resulting output shape: 16, 820, 80
 
         return (
             output,
+            p_predictions,
+            e_predictions,
+            log_d_predictions,
+            d_rounded,
             src_masks,
             mel_masks,
             src_lens,

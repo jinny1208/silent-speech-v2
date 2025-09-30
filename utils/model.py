@@ -48,7 +48,7 @@ def get_model(args, configs, device, train=False):
         scheduled_optim_disc = ScheduledOptimDisc(
             model, train_config
         )
-        if args.restore_step:
+        if args.restore_step and train_config["emgInput"]["emgFlag"] == False:
             scheduled_optim_main.load_state_dict(ckpt["optimizer_main"])
             scheduled_optim_disc.load_state_dict(ckpt["optimizer_disc"])
         model.train()

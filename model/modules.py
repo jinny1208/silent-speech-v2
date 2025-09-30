@@ -368,6 +368,7 @@ class EmgEncoder(nn.Module):
             ResBlock(8, EMG_d_model, 2),
             ResBlock(EMG_d_model, EMG_d_model, 2),
             ResBlock(EMG_d_model, EMG_d_model, 2),
+            ResBlock(EMG_d_model, EMG_d_model, 2),            
             ResBlock(EMG_d_model, EMG_d_model, 2),
         )
 
@@ -656,7 +657,7 @@ class MelDecoder(nn.Module):
         batch_size, max_len = enc_seq.shape[0], enc_seq.shape[1]
 
         # -- PreNet
-        # enc_seq = self.mel_prenet(enc_seq, mask)
+        enc_seq = self.mel_prenet(enc_seq, mask)
 
         # -- Forward
         if not self.training and enc_seq.shape[1] > self.max_seq_len:
@@ -710,7 +711,8 @@ class MelDecoderWoutStyle(nn.Module):
 
         self.max_seq_len = config["max_seq_len"]
         self.d_model = d_model
-
+        
+        self.mel_prenet = MelPreNet(config)
         self.position_enc = nn.Parameter(
             get_sinusoid_encoding_table(n_position, d_word_vec).unsqueeze(0),
             requires_grad=False,
@@ -729,6 +731,9 @@ class MelDecoderWoutStyle(nn.Module):
 
         dec_slf_attn_list = []
         batch_size, max_len = enc_seq.shape[0], enc_seq.shape[1]
+
+        # -- PreNet
+        enc_seq = self.mel_prenet(enc_seq, mask)
 
         # -- Forward
         if not self.training and enc_seq.shape[1] > self.max_seq_len:
@@ -749,13 +754,6 @@ class MelDecoderWoutStyle(nn.Module):
             ].expand(batch_size, -1, -1)
             mask = mask[:, :max_len]
             slf_attn_mask = slf_attn_mask[:, :, :max_len]
-
-        for dec_layer in self.layer_stack:
-            dec_output, dec_slf_attn = dec_layer(
-                dec_output, mask=mask, slf_attn_mask=slf_attn_mask
-            )
-            if return_attns:
-                dec_slf_attn_list += [dec_slf_attn]
 
         return dec_output, mask
 

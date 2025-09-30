@@ -117,7 +117,7 @@ def main(args, configs):
                     else:
                         losses = [l.item() for l in (losses_1+tuple([torch.zeros(1).to(device) for _ in range(3)]))]
                     message1 = "Step {}/{}, ".format(step, total_step)
-                    message2 = "Total Loss: {:.4f}, Mel Loss: {:.4f}, cls Loss: {:.4f}".format(
+                    message2 = "Total Loss: {:.4f}, Mel Loss: {:.4f}, Pitch Loss: {:.4f}, Energy Loss: {:.4f}, Duration Loss: {:.4f}, cls Loss: {:.4f}".format(
                         *losses
                     )
 
@@ -188,7 +188,7 @@ def main(args, configs):
         epoch += 1
 
 
-if __name__ == "__main__": # '--restore_step', '1000',
+if __name__ == "__main__": # '--restore_step', '4000',
     sys.argv = ['train.py', '-p', 'config/LibriTTS/preprocess.yaml', '-m', 'config/LibriTTS/model.yaml', '-t', 'config/LibriTTS/train.yaml']
     parser = argparse.ArgumentParser()
     parser.add_argument("--restore_step", type=int, default=0)
