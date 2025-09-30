@@ -31,7 +31,7 @@ For English multi-speaker TTS, run
 python3 synthesize.py --text "YOUR_DESIRED_TEXT" --ref_audio path/to/reference_audio.wav --restore_step 200000 --mode single -p config/LibriTTS/preprocess.yaml -m config/LibriTTS/model.yaml -t config/LibriTTS/train.yaml
 ```
 The generated utterances will be put in ``output/result/``. Your synthesized speech will have `ref_audio`'s style.
-
+dfd
 
 ## Batch Inference
 Batch inference is also supported, try
