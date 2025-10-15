@@ -18,19 +18,35 @@ class MetaStyleSpeechLossMain(nn.Module):
         self.mae_loss = nn.L1Loss()
 
     def forward(self, inputs, predictions):
-        (
-            mel_targets,
-            _,
-            _,
-            pitch_targets,
-            energy_targets,
-            duration_targets,
-            _,
-            _,
-            _,
-            _,
-            _,
-        ) = inputs[6:]
+        if len(inputs[6:]) == 12:
+            (
+                mel_targets,
+                _,
+                _,
+                _,
+                pitch_targets,
+                energy_targets,
+                duration_targets,
+                _,
+                _,
+                _,
+                _,
+                _,
+            ) = inputs[6:]
+        else: # without emg i think 
+            (
+                mel_targets,
+                _,
+                _,
+                pitch_targets,
+                energy_targets,
+                duration_targets,
+                _,
+                _,
+                _,
+                _,
+                _,
+            ) = inputs[6:]
         (
             D_s,
             D_t,

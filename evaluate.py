@@ -1,6 +1,6 @@
 import argparse
 import os
-
+from functools import partial
 import torch
 import yaml
 import torch.nn as nn
@@ -15,19 +15,19 @@ from dataset import Dataset
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def evaluate(model, step, configs, logger=None, vocoder=None, loss_len=5):
+def evaluate(model, step, configs, logger=None, vocoder=None, loss_len=5, emgFlag=False):
     preprocess_config, model_config, train_config = configs
 
     # Get dataset
     dataset = Dataset(
-        "val.txt", preprocess_config, train_config, sort=False, drop_last=False
-    )
+        "Usethis-val2UnandSeeSpk-sameButErasedSeenandUnseenLabel.txt", preprocess_config, train_config, sort=False, drop_last=False
+    ) # Usethis-val2UnandSeeSpk-sameButErasedSeenandUnseenLabel.txt or V5-val_merged_filelist-noDup-noMisalignedSpeakerID.txt
     batch_size = train_config["optimizer"]["batch_size"]
     loader = DataLoader(
         dataset,
         batch_size=batch_size,
         shuffle=False,
-        collate_fn=dataset.collate_fn,
+        collate_fn=partial(dataset.collate_fn, emgFlag=train_config["emgInput"]["emgFlag"]),
     )
 
     # Get loss function
@@ -40,7 +40,14 @@ def evaluate(model, step, configs, logger=None, vocoder=None, loss_len=5):
             batch = to_device(batch, device)
             with torch.no_grad():
                 # Forward
-                output = (None, None, *model(*(batch[2:-5])))
+                # pdb.set_trace()
+                if emgFlag:
+                    output = (None, None, *model(*(batch[2:-5])))
+                else:
+                    # inject None in place of emg
+                    no_emg_batch = list(batch[2:-5])
+                    no_emg_batch.insert(7, None)   # 6th position = where emg would be
+                    output = (None, None, *model(*no_emg_batch))
 
                 # Cal Loss
                 losses = Loss(batch, output)

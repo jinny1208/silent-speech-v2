@@ -5,17 +5,24 @@ prenet:
 transformer:
   encoder_layer: 4
   encoder_head: 2
-  encoder_hidden: 256
+  encoder_hidden: 1024
   decoder_layer: 4
   decoder_head: 2
-  decoder_hidden: 256
+  decoder_hidden: 1024
   conv_filter_size: 1024
   conv_kernel_size: [9, 1]
   encoder_dropout: 0.1
   decoder_dropout: 0.1
 
+EMGTransformer:
+  encoder_layer: 6
+  encoder_hidden: 1024
+  encoder_head: 8
+  encoder_dropout: 0.2
+  dim_feedforward: 3072
+
 melencoder:
-  encoder_hidden: 256 #########
+  encoder_hidden: 128
   spectral_layer: 2
   temporal_layer: 2
   slf_attn_layer: 1
@@ -24,7 +31,7 @@ melencoder:
   encoder_dropout: 0.1
 
 variance_predictor:
-  filter_size: 256
+  filter_size: 1024
   kernel_size: 3
   dropout: 0.5
 
@@ -32,7 +39,7 @@ variance_embedding:
   kernel_size: 9
 
 discriminator:
-  mel_linear_size: 256
+  mel_linear_size: 1024
   phoneme_layer: 3
   phoneme_hidden: 512
 

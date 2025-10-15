@@ -1,9 +1,11 @@
 path:
-  ckpt_path: "./output/ckpt/1-EMGrawinput"
-  log_path: "./output/log/1-EMGrawinput"
-  result_path: "./output/result/1-EMGrawinput"
+  ckpt_path: "./output/ckpt/1-test"
+  log_path: "./output/log/1-test"
+  result_path: "./output/result/1-test"
+emgInput:
+  emgFlag: False
 optimizer:
-  batch_size: 28
+  batch_size: 16 ## with emg 2 GPUs max 16, just TTS 1 GPU 32
   betas: [0.9, 0.98]
   eps: 0.000000001
   weight_decay: 0.0

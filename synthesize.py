@@ -6,6 +6,7 @@ import yaml
 import numpy as np
 import os
 import json
+from functools import partial
 
 import librosa
 import pyworld as pw
@@ -19,9 +20,6 @@ from utils.model import get_model, get_vocoder
 from utils.tools import to_device, synth_samples
 from dataset import BatchInferenceDataset
 from text import text_to_sequence
-
-from resemblyzer import preprocess_wav, VoiceEncoder
-resemblyzerEnc = VoiceEncoder()
 
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
@@ -114,34 +112,6 @@ def preprocess_english(text, preprocess_config):
     return np.array(sequence)
 
 
-def preprocess_mandarin(text, preprocess_config):
-    lexicon = read_lexicon(preprocess_config["path"]["lexicon_path"])
-
-    phones = []
-    pinyins = [
-        p[0]
-        for p in pinyin(
-            text, style=Style.TONE3, strict=False, neutral_tone_with_five=True
-        )
-    ]
-    for p in pinyins:
-        if p in lexicon:
-            phones += lexicon[p]
-        else:
-            phones.append("sp")
-
-    phones = "{" + " ".join(phones) + "}"
-    print("Raw Text Sequence: {}".format(text))
-    print("Phoneme Sequence: {}".format(phones))
-    sequence = np.array(
-        text_to_sequence(
-            phones, preprocess_config["preprocessing"]["text"]["text_cleaners"]
-        )
-    )
-
-    return np.array(sequence)
-
-
 def synthesize(model, step, configs, vocoder, batchs, control_values):
     preprocess_config, model_config, train_config = configs
     pitch_control, energy_control, duration_control = control_values
@@ -169,26 +139,77 @@ def synthesize(model, step, configs, vocoder, batchs, control_values):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--restore_step", type=int, default=500000)
+    parser.add_argument("--restore_step", type=int, required=True)
+    parser.add_argument(
+        "--mode",
+        type=str,
+        choices=["batch", "single"],
+        required=True,
+        help="Synthesize a whole dataset or a single sentence",
+    )
+    parser.add_argument(
+        "--source",
+        type=str,
+        default=None,
+        help="path to a source file with format like train.txt and val.txt, for batch mode only",
+    )
+    parser.add_argument(
+        "--text",
+        type=str,
+        default=None,
+        help="raw text to synthesize, for single-sentence mode only",
+    )
+    parser.add_argument(
+        "--ref_audio",
+        type=str,
+        default=None,
+        help="reference audio path to extract the speech style, for single-sentence mode only",
+    )
+    parser.add_argument(
+        "-p",
+        "--preprocess_config",
+        type=str,
+        required=True,
+        help="path to preprocess.yaml",
+    )
+    parser.add_argument(
+        "-m", "--model_config", type=str, required=True, help="path to model.yaml"
+    )
+    parser.add_argument(
+        "-t", "--train_config", type=str, required=True, help="path to train.yaml"
+    )
+    parser.add_argument(
+        "--pitch_control",
+        type=float,
+        default=1.0,
+        help="control the pitch of the whole utterance, larger value for higher pitch",
+    )
+    parser.add_argument(
+        "--energy_control",
+        type=float,
+        default=1.0,
+        help="control the energy of the whole utterance, larger value for larger volume",
+    )
+    parser.add_argument(
+        "--duration_control",
+        type=float,
+        default=1.0,
+        help="control the speed of the whole utterance, larger value for slower speaking rate",
+    )
     args = parser.parse_args()
 
-    mode = "single"
-    pitch_control = 1.0
-    energy_control = 1.0
-    duration_control = 1.0
-    preprocess_config = "config/LibriTTS/preprocess.yaml"
-    model_config = "config/LibriTTS/model.yaml"
-    train_config = "config/LibriTTS/train.yaml"
-
-
-    ref_audio_dir = "/home/jeonyj0612/SpeechDis/output/Reference_Audio_UASpeech/"
+    # Check source texts
+    if args.mode == "batch":
+        assert args.source is not None and args.text is None
+    if args.mode == "single":
+        assert args.source is None and args.text is not None
 
     # Read Config
     preprocess_config = yaml.load(
-        open(preprocess_config, "r"), Loader=yaml.FullLoader
+        open(args.preprocess_config, "r"), Loader=yaml.FullLoader
     )
-    model_config = yaml.load(open(model_config, "r"), Loader=yaml.FullLoader)
-    train_config = yaml.load(open(train_config, "r"), Loader=yaml.FullLoader)
+    model_config = yaml.load(open(args.model_config, "r"), Loader=yaml.FullLoader)
+    train_config = yaml.load(open(args.train_config, "r"), Loader=yaml.FullLoader)
     configs = (preprocess_config, model_config, train_config)
 
     # Get model
@@ -197,38 +218,24 @@ if __name__ == "__main__":
     # Load vocoder
     vocoder = get_vocoder(model_config, device)
 
-    for ref_audio in os.listdir(ref_audio_dir):
-        ref_audio = os.path.join(ref_audio_dir, ref_audio)
+    # Preprocess texts
+    if args.mode == "batch":
+        # Get dataset
+        dataset = BatchInferenceDataset(args.source, preprocess_config, emgFlag=train_config["emgInput"]["emgFlag"])
+        batchs = DataLoader(
+            dataset,
+            batch_size=8,
+            collate_fn=partial(dataset.collate_fn, emgFlag=train_config["emgInput"]["emgFlag"]),
+    )
+    if args.mode == "single":
+        ids = raw_texts = [args.text[:100]]
+        if preprocess_config["preprocessing"]["text"]["language"] == "en":
+            texts = np.array([preprocess_english(args.text, preprocess_config)])
+        text_lens = np.array([len(texts[0])])
+        mels, mel_lens, ref_info = get_audio(preprocess_config, args.ref_audio)
+        batchs = [(["_".join([os.path.basename(args.ref_audio).strip(".wav"), id]) for id in ids], \
+            raw_texts, None, texts, text_lens, max(text_lens), mels, mel_lens, max(mel_lens), [ref_info])]
 
-        raw_audio_preprocessed = preprocess_wav(ref_audio)
-        resemblyzer_embedded = resemblyzerEnc.embed_utterance(raw_audio_preprocessed)
+    control_values = args.pitch_control, args.energy_control, args.duration_control
 
-        count = 1
-    
-        if count < 6:
-            texts = [
-                "command", "backspace", "enter", "school", "what a wonderful day", "great things", "great weather today right",
-                "She carefully arranged the vibrant vegetables on the cutting board, preparing a hearty stew for dinner.",
-                "A gentle breeze carried the scent of fresh lavender across the meadow, where bees buzzed among the flowers.",
-                "The towering skyscrapers reflected the golden hues of the setting sun, creating a dazzling display on the city skyline."
-            ]
-            
-            for text in texts:
-                print(count)
-                # Preprocess texts
-                ids = raw_texts = [text[:100]]
-                print(text)
-                texts = np.array([preprocess_english(text, preprocess_config)])
-                text_lens = np.array([len(texts[0])])
-                mels, mel_lens, ref_info = get_audio(preprocess_config, ref_audio)
-
-                batchs = [(["_".join([os.path.basename(ref_audio).strip(".wav"), id]) for id in ids], \
-                    raw_texts, None, texts, text_lens, max(text_lens), mels, mel_lens, max(mel_lens), resemblyzer_embedded, [ref_info])]
-
-                control_values = pitch_control, energy_control, duration_control
-
-                synthesize(model, args.restore_step, configs, vocoder, batchs, control_values)
-                count += 1
-
-
-            
+    synthesize(model, args.restore_step, configs, vocoder, batchs, control_values)

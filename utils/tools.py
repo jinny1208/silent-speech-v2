@@ -17,6 +17,62 @@ device = torch.device("cuda")
 
 
 def to_device(data, device):
+    if len(data) == 18: # With EMG
+        (
+            ids,
+            raw_texts,
+            speakers,
+            texts,
+            src_lens,
+            max_src_len,
+            mels,
+            mel_lens,
+            max_mel_len,
+            emg,
+            pitches,
+            energies,
+            durations,
+            raw_quary_texts,
+            quary_texts,
+            quary_src_lens,
+            max_quary_src_len,
+            quary_durations,
+        ) = data
+
+        speakers = torch.from_numpy(speakers).long().to(device)
+        texts = torch.from_numpy(texts).long().to(device)
+        src_lens = torch.from_numpy(src_lens).to(device)
+        quary_texts = torch.from_numpy(quary_texts).long().to(device)
+        quary_src_lens = torch.from_numpy(quary_src_lens).to(device)
+        mels = torch.from_numpy(mels).float().to(device)
+        mel_lens = torch.from_numpy(mel_lens).to(device)
+        emg = torch.from_numpy(emg).float().to(device)
+        pitches = torch.from_numpy(pitches).float().to(device)
+        energies = torch.from_numpy(energies).to(device)
+        durations = torch.from_numpy(durations).long().to(device)
+        quary_durations = torch.from_numpy(quary_durations).long().to(device)
+
+        return (
+            ids,
+            raw_texts,
+            speakers,
+            texts,
+            src_lens,
+            max_src_len,
+            mels,
+            mel_lens,
+            max_mel_len,
+            emg,
+            pitches,
+            energies,
+            durations,
+            raw_quary_texts,
+            quary_texts,
+            quary_src_lens,
+            max_quary_src_len,
+            quary_durations,
+        )
+    
     if len(data) == 17:
         (
             ids,
@@ -68,6 +124,43 @@ def to_device(data, device):
             quary_src_lens,
             max_quary_src_len,
             quary_durations,
+        )
+
+    if len(data) == 11:
+        (
+            ids,
+            raw_texts,
+            speakers,
+            texts,
+            src_lens,
+            max_src_len,
+            mels,
+            mel_lens,
+            max_mel_len,
+            emg,
+            ref_infos,
+        ) = data
+
+        # pdb.set_trace()
+        texts = torch.from_numpy(texts).long().to(device)
+        src_lens = torch.from_numpy(src_lens).to(device)
+        mels = torch.from_numpy(mels).float().to(device)
+
+        mel_lens = torch.from_numpy(mel_lens).to(device)
+        emg = torch.from_numpy(emg).float().to(device)
+
+        return (
+            ids,
+            raw_texts,
+            speakers,
+            texts,
+            src_lens,
+            max_src_len,
+            mels,
+            mel_lens,
+            max_mel_len,
+            emg, 
+            ref_infos,
         )
 
     if len(data) == 10:
@@ -154,17 +247,32 @@ def synth_one_sample(targets, predictions, vocoder, model_config, preprocess_con
     mel_len = predictions[8][0].item()
     mel_target = targets[6][0, :mel_len].detach().transpose(0, 1)
     mel_prediction = predictions[0][0, :mel_len].detach().transpose(0, 1)
-    duration = targets[11][0, :src_len].detach().cpu().numpy()
-    if preprocess_config["preprocessing"]["pitch"]["feature"] == "phoneme_level":
-        pitch = targets[9][0, :src_len].detach().cpu().numpy()
-        pitch = expand(pitch, duration)
-    else:
-        pitch = targets[9][0, :mel_len].detach().cpu().numpy()
-    if preprocess_config["preprocessing"]["energy"]["feature"] == "phoneme_level":
-        energy = targets[10][0, :src_len].detach().cpu().numpy()
-        energy = expand(energy, duration)
-    else:
-        energy = targets[10][0, :mel_len].detach().cpu().numpy()
+
+    if len(targets)==18:
+        duration = targets[12][0, :src_len].detach().cpu().numpy()
+        if preprocess_config["preprocessing"]["pitch"]["feature"] == "phoneme_level":
+            pitch = targets[10][0, :src_len].detach().cpu().numpy()
+            pitch = expand(pitch, duration)
+        else:
+            pitch = targets[10][0, :mel_len].detach().cpu().numpy()
+        if preprocess_config["preprocessing"]["energy"]["feature"] == "phoneme_level":
+            energy = targets[11][0, :src_len].detach().cpu().numpy()
+            energy = expand(energy, duration)
+        else:
+            energy = targets[11][0, :mel_len].detach().cpu().numpy()
+    else: 
+        duration = targets[11][0, :src_len].detach().cpu().numpy()
+        if preprocess_config["preprocessing"]["pitch"]["feature"] == "phoneme_level":
+            pitch = targets[9][0, :src_len].detach().cpu().numpy()
+            pitch = expand(pitch, duration)
+        else:
+            pitch = targets[9][0, :mel_len].detach().cpu().numpy()
+        if preprocess_config["preprocessing"]["energy"]["feature"] == "phoneme_level":
+            energy = targets[10][0, :src_len].detach().cpu().numpy()
+            energy = expand(energy, duration)
+        else:
+            energy = targets[10][0, :mel_len].detach().cpu().numpy()
+
 
     with open(
         os.path.join(preprocess_config["path"]["preprocessed_path"], "stats.json")

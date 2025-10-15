@@ -59,8 +59,9 @@ class ScheduledOptimDisc:
     def __init__(self, model, train_config):
 
         self._optimizer = torch.optim.Adam(
-            [param for name, param in model.named_parameters()
-                        if any([filtered_name in name for filtered_name in ['D_s', 'D_t']])],
+            # [param for name, param in model.named_parameters()
+            #             if any([filtered_name in name for filtered_name in ['D_s', 'D_t']])],
+            model.parameters(),
             betas=train_config["optimizer"]["betas"],
             eps=train_config["optimizer"]["eps"],
             weight_decay=train_config["optimizer"]["weight_decay"],
